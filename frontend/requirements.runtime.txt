@@ -1,0 +1,5 @@
+# GUI container — no pytest / dev tools
+PySide6>=6.6
+qasync>=0.27.1
+httpx>=0.27
+pydantic>=2.6

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "golf-monorepo"
+version = "0.1.0"
+description = "Golf desktop app monorepo (backend + frontend + shared test support)"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["backend/tests", "frontend/tests"]
+pythonpath = ["packages/test_support/src", "backend", "frontend"]
+# Default output: one line per test + short tracebacks + summary of skips/xfail + slowest tests
+addopts = "-v --tb=short -ra --color=yes --durations=15"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

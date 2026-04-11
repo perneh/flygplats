@@ -1,0 +1,3 @@
+-r backend/requirements-core.txt
+-r frontend/requirements-core.txt
+-e packages/test_support

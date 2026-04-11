@@ -1,0 +1,40 @@
+# Install: pip install -r requirements-dev.txt && pre-commit install
+# Run manually: pre-commit run --all-files
+
+default_language_version:
+  python: python3.11
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: pytest-backend
+        name: pytest (backend)
+        entry: bash scripts/pre-commit-tests.sh backend
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: pytest-frontend
+        name: pytest (frontend, offscreen)
+        entry: bash scripts/pre-commit-tests.sh frontend
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

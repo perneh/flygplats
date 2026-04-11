@@ -1,0 +1,196 @@
+{
+  "golf_clubs": [
+    {
+      "id": 1,
+      "name": "Driver",
+      "type": "Wood",
+      "loft_deg": 10.5,
+      "difficulty": "High",
+      "max_distance_m": 270,
+      "avg_distance_m": 230,
+      "player_level": [
+        "Intermediate",
+        "Pro"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "3 Wood",
+      "type": "Wood",
+      "loft_deg": 15,
+      "difficulty": "High",
+      "max_distance_m": 240,
+      "avg_distance_m": 210,
+      "player_level": [
+        "Intermediate",
+        "Pro"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "5 Wood",
+      "type": "Wood",
+      "loft_deg": 18,
+      "difficulty": "Medium",
+      "max_distance_m": 220,
+      "avg_distance_m": 195,
+      "player_level": [
+        "Beginner",
+        "Intermediate"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "3 Iron",
+      "type": "Iron",
+      "loft_deg": 19,
+      "difficulty": "High",
+      "max_distance_m": 210,
+      "avg_distance_m": 185,
+      "player_level": [
+        "Pro"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "4 Iron",
+      "type": "Iron",
+      "loft_deg": 22,
+      "difficulty": "High",
+      "max_distance_m": 200,
+      "avg_distance_m": 180,
+      "player_level": [
+        "Intermediate",
+        "Pro"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "5 Iron",
+      "type": "Iron",
+      "loft_deg": 25,
+      "difficulty": "Medium",
+      "max_distance_m": 190,
+      "avg_distance_m": 170,
+      "player_level": [
+        "Intermediate"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "6 Iron",
+      "type": "Iron",
+      "loft_deg": 28,
+      "difficulty": "Medium",
+      "max_distance_m": 180,
+      "avg_distance_m": 160,
+      "player_level": [
+        "Beginner",
+        "Intermediate"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "7 Iron",
+      "type": "Iron",
+      "loft_deg": 32,
+      "difficulty": "Medium",
+      "max_distance_m": 170,
+      "avg_distance_m": 150,
+      "player_level": [
+        "Beginner",
+        "Intermediate"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "8 Iron",
+      "type": "Iron",
+      "loft_deg": 36,
+      "difficulty": "Low",
+      "max_distance_m": 160,
+      "avg_distance_m": 140,
+      "player_level": [
+        "Beginner"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "9 Iron",
+      "type": "Iron",
+      "loft_deg": 40,
+      "difficulty": "Low",
+      "max_distance_m": 150,
+      "avg_distance_m": 130,
+      "player_level": [
+        "Beginner"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Pitching Wedge",
+      "type": "Wedge",
+      "loft_deg": 45,
+      "difficulty": "Low",
+      "max_distance_m": 130,
+      "avg_distance_m": 110,
+      "player_level": [
+        "Beginner",
+        "Intermediate"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Gap Wedge",
+      "type": "Wedge",
+      "loft_deg": 50,
+      "difficulty": "Low",
+      "max_distance_m": 110,
+      "avg_distance_m": 95,
+      "player_level": [
+        "Beginner",
+        "Intermediate"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Sand Wedge",
+      "type": "Wedge",
+      "loft_deg": 56,
+      "difficulty": "Medium",
+      "max_distance_m": 90,
+      "avg_distance_m": 75,
+      "player_level": [
+        "Beginner",
+        "Intermediate"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Lob Wedge",
+      "type": "Wedge",
+      "loft_deg": 60,
+      "difficulty": "High",
+      "max_distance_m": 70,
+      "avg_distance_m": 55,
+      "player_level": [
+        "Intermediate",
+        "Pro"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Putter",
+      "type": "Putter",
+      "loft_deg": 3,
+      "difficulty": "Low",
+      "max_distance_m": 30,
+      "avg_distance_m": 10,
+      "player_level": [
+        "Beginner",
+        "Intermediate",
+        "Pro"
+      ]
+    }
+  ]
+}

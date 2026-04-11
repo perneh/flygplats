@@ -1,0 +1,14 @@
+# macOS + XQuartz: use the host Unix socket instead of TCP (port 6000).
+# Use when `lsof -iTCP:6000` shows nothing but XQuartz is running (socket exists).
+#
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.mac-x11-socket.yml up --build
+#
+# Or use ./scripts/docker-up.sh — it selects this file automatically when TCP :0 is
+# unavailable but /tmp/.X11-unix/X0 exists.
+
+services:
+  frontend:
+    environment:
+      DISPLAY: ":0"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw

@@ -1,0 +1,71 @@
+# syntax=docker/dockerfile:1
+# PySide6 GUI: builder installs wheels only; runtime gets minimal X11 libs.
+FROM python:3.12-slim-bookworm AS builder
+WORKDIR /build
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY frontend/requirements.runtime.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements.runtime.txt && \
+    find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+FROM python:3.12-slim-bookworm AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH=/app/frontend \
+    HOME=/home/appuser
+
+WORKDIR /app
+
+# Qt6 / XCB — one apt layer, cleaned (keeps image smaller than full dev stack).
+# libegl1: libEGL.so.1 (Qt/qasync imports QtGui → Mesa EGL)
+# libxcb-cursor0: required since Qt 6.5 for the xcb platform plugin
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libegl1 \
+    libglib2.0-0 \
+    libxkbcommon0 \
+    libdbus-1-3 \
+    libfontconfig1 \
+    libfreetype6 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-render0 \
+    libxcb-shape0 \
+    libxcb-shm0 \
+    libxcb-sync1 \
+    libxcb-xfixes0 \
+    libxcb-xinerama0 \
+    libxcb-xkb1 \
+    libxcb-cursor0 \
+    libxcb-util1 \
+    libxkbcommon-x11-0 \
+    libxcb1 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxext6 \
+    libsm6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ldconfig
+
+COPY --from=builder /opt/venv /opt/venv
+COPY frontend/golf_desktop /app/frontend/golf_desktop
+
+# Writable HOME so fontconfig can build caches (system users often have HOME=/nonexistent).
+RUN useradd --uid 999 --no-log-init -m -d /home/appuser --shell /usr/sbin/nologin appuser \
+    && mkdir -p /home/appuser/.cache/fontconfig \
+    && chown -R appuser:appuser /home/appuser /app
+
+USER appuser
+
+CMD ["python", "-m", "golf_desktop"]

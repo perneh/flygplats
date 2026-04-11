@@ -1,0 +1,3 @@
+# Install from repo root: pip install -r requirements-dev.txt
+# Or core only: pip install -r frontend/requirements-core.txt
+-r requirements-core.txt

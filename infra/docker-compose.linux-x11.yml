@@ -1,0 +1,10 @@
+# Linux: add the host X11 Unix socket into the container.
+# Usage:
+#   export DISPLAY=${DISPLAY:-:0}
+#   xhost +local:docker
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.linux-x11.yml up --build
+
+services:
+  frontend:
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro

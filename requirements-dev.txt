@@ -1,0 +1,5 @@
+# Local development: from repository root — pip install -r requirements-dev.txt
+-r backend/requirements-core.txt
+-r frontend/requirements-core.txt
+-e packages/test_support
+pre-commit>=3.7
