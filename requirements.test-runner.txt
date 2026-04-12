@@ -1,3 +1,4 @@
--r backend/requirements-core.txt
+# Test-runner image: HTTP client to backend + frontend GUI tests. For in-process API tests
+# locally, also install: pip install -r backend/requirements-core.txt
 -r frontend/requirements-core.txt
 -e packages/test_support

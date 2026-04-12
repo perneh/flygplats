@@ -2,6 +2,16 @@
 
 All paths below assume the **repository root** as the current working directory.
 
+**Compose project name:** `golf-infra` (set in `infra/docker-compose.yml`). Containers and networks are prefixed `golf-infra-…` instead of the old implicit **`infra-…`** (Compose used to derive the name from the `infra/` directory). If you had an existing Postgres volume from the old name, either migrate data or temporarily set `COMPOSE_PROJECT_NAME=infra` in `.env` until you move the data.
+
+### Build fails: `registry-1.docker.io` / `docker/dockerfile` / “no route to host”
+
+Docker must reach **Docker Hub** to pull base images (`python`, `postgres`, …). Errors mentioning **`dial tcp … :443: connect: no route to host`** (often with an **IPv6** address) usually mean the path to `registry-1.docker.io` is blocked or mis-routed—VPN, firewall, corporate network, or broken IPv6 on the LAN.
+
+This repo’s Dockerfiles **do not** use `# syntax=docker/dockerfile:1`, so BuildKit does **not** need an extra upfront pull of the Dockerfile frontend image (one fewer Hub round-trip).
+
+If pulls still fail, try another network, turn the VPN off or on, or in **Docker Desktop** (macOS) check **Settings → Resources → Network** / experimental options; some users fix Hub access by preferring IPv4 or adjusting proxy settings. Confirm with: `docker pull hello-world`.
+
 ## Start the stack (database, API, desktop GUI)
 
 1. **Build and start** every service (recommended on **macOS** — runs a display check before `frontend` starts):
@@ -10,13 +20,11 @@ All paths below assume the **repository root** as the current working directory.
    ./scripts/docker-up.sh up --build
    ```
 
-   On **macOS**, if **TCP port 6000** is not listening but **XQuartz is running**, `docker-up.sh` automatically adds **`infra/docker-compose.mac-x11-socket.yml`** so the container uses the **Unix socket** `/tmp/.X11-unix` (often works when TCP is disabled). You can run the same manually:
+   On **macOS**, `docker-up.sh` **fails** if X11 is not listening on **TCP port 6000** — enable it in XQuartz (see below). We do **not** auto-attach a Unix-socket override; that path is unreliable on Docker Desktop.
 
-   ```bash
-   docker compose -f infra/docker-compose.yml -f infra/docker-compose.mac-x11-socket.yml up --build
-   ```
+   Optional manual attempt (not recommended on Mac): `docker compose -f infra/docker-compose.yml -f infra/docker-compose.mac-x11-socket.yml up --build`
 
-   Equivalent without the check:
+   Equivalent without `docker-up`:
 
    ```bash
    docker compose -f infra/docker-compose.yml up --build
@@ -94,7 +102,17 @@ All paths below assume the **repository root** as the current working directory.
    docker compose -f infra/docker-compose.yml up --build
    ```
 
-   Compose passes **`DISPLAY`** into the container using, in order: **`FRONTEND_DISPLAY`** (from `.env`), then your shell **`DISPLAY`**, then **`host.docker.internal:0`**. It also sets **`QT_X11_NO_MITSHM=1`**, which avoids many failures when X11 goes over **TCP** (container → Mac). This setup does **not** mount `/tmp/.X11-unix` on macOS.
+   **`DISPLAY` in the container** comes only from **`FRONTEND_DISPLAY`** in `.env` (see [`.env.example`](../.env.example)), defaulting to **`host.docker.internal:0`**. Your **host shell’s `DISPLAY=:0` is not used** — if it were, Qt would look for a Unix socket **inside the container** and fail with **`could not connect to display :0`**.
+
+   It also sets **`QT_X11_NO_MITSHM=1`**, which avoids many failures when X11 goes over **TCP** (container → Mac). The default macOS setup does **not** mount `/tmp/.X11-unix`.
+
+   ### Error: `could not connect to display :0`
+
+   The GUI container should use **`host.docker.internal:0`** (TCP), not **`:0`**. If logs still show **`:0`**, check **`.env`**: remove **`FRONTEND_DISPLAY=:0`** unless you use the Linux socket override on Linux. Recreate the container after editing: `docker compose -f infra/docker-compose.yml up --build --force-recreate frontend`.
+
+   If you merged **`infra/docker-compose.mac-x11-socket.yml`**, stop using it on Docker Desktop unless you know the socket mount works; enable **XQuartz TCP** and use the default compose file instead.
+
+   **`xcb-cursor` / platform plugin `xcb`** messages are usually **secondary**; fix the display first.
 
    ### Error: `could not connect to display host.docker.internal:0` (fix this first)
 
@@ -148,9 +166,30 @@ All paths below assume the **repository root** as the current working directory.
 
    7. **Helper script (macOS):** `bash scripts/verify-x11-docker-mac.sh`
 
-   ### macOS — simpler alternative (no XQuartz)
+   ### No window on the Mac (XQuartz)
 
-   Run API + DB in Docker and the GUI **natively** on the Mac:
+   The **frontend** container runs **Linux Qt** and talks to **XQuartz** on the Mac. The app window is an **X11 window**, not a normal **native macOS** window on the main desktop.
+
+   - **Bring XQuartz to the front:** click **XQuartz** in the Dock (or use **Cmd+Tab**). The Golf Desktop window usually lives there, not mixed with ordinary app windows.
+   - Use the **Window** menu in the **XQuartz** menu bar (top of screen when XQuartz is active) to see open X11 windows.
+   - If the stack runs but you still see nothing, check **`docker compose … logs frontend`** for Qt errors; confirm **`lsof … 6000`** shows XQuartz listening.
+   - For a **native** macOS window without X11, run the app **on the host** (venv + `API_BASE_URL`) — see [temporary workaround](../README.md#temporary-workaround-api-in-docker-desktop-on-the-host).
+
+   ### Frontend in a full virtual machine (VM)
+
+   Yes — you can run the stack (or only the **frontend** container) **inside a Linux (or other) VM** and still use the **laptop screen**, but you must choose **how** the VM shows graphics:
+
+   | Approach | Idea |
+   |----------|------|
+   | **VM console (VNC / RDP / SPICE)** | Install a desktop in the VM, run Docker Compose there, connect from the laptop with **VNC Viewer**, **Microsoft Remote Desktop**, or your hypervisor’s **full-screen** / **seamless** mode. The whole VM desktop (including X11/Qt windows) appears on the host monitor. |
+   | **Docker Desktop on the Mac** | Already uses a small Linux VM under the hood; the GUI path is **XQuartz** on the Mac — see above. |
+   | **X11 over the network** | Linux VM runs Qt with `DISPLAY=<laptop-ip>:0` and **XQuartz** on the Mac listens on TCP (same idea as `host.docker.internal:0`, but the client is the VM’s IP). You must allow the VM in **firewall** / **`xhost`**. |
+
+   There is no magic “pipe only our app” to the bare metal screen without **some** display channel (VNC, RDP, X11, or a native app on the host). For the **simplest native window on macOS**, run **backend in Docker** and **PySide on the host** (venv) — see the [temporary workaround](../README.md#temporary-workaround-api-in-docker-desktop-on-the-host).
+
+   ### macOS — host GUI without XQuartz (temporary workaround)
+
+   If you **cannot** use the **frontend** container (see above), run **db + backend** in Compose and the desktop **on the host**. This matches the [temporary workaround](../README.md#temporary-workaround-api-in-docker-desktop-on-the-host) in the root README — prefer the full Compose stack when possible.
 
    ```bash
    docker compose -f infra/docker-compose.yml up --build db backend
@@ -214,11 +253,11 @@ This builds (if needed) and runs the image `CMD` (pytest on backend + frontend t
 docker compose -f infra/docker-compose.yml --profile tests run --rm test-runner
 ```
 
-### Load scenario (`test_load_scenario.py`) against the real backend
+### Load scenario (`test_07_load_scenario.py`) against the real backend
 
 That module **fails** if you omit `--api-base-url` / `PYTEST_API_BASE_URL` / `--api-host`, so you do not get a green run that only touched in-memory SQLite.
 
-The default **`test-runner` `CMD`** excludes `test_load_scenario.py` so `docker compose run test-runner` still runs the rest of `backend/tests` + `frontend/tests` without a live API. Run the load file explicitly when backend is up.
+The default **`test-runner` `CMD`** excludes `test_07_load_scenario.py` so `docker compose run test-runner` still runs the rest of `backend/tests` + `frontend/tests` without a live API. Run the load file explicitly when backend is up.
 
 The load test only calls **factory-default** at the **start** (wipe), then creates data; it does **not** clean up after itself. To see that data in Postgres after pytest finishes, you must hit the running API.
 
@@ -227,7 +266,7 @@ The load test only calls **factory-default** at the **start** (wipe), then creat
 
 ```bash
 docker compose -f infra/docker-compose.yml --profile tests run --rm test-runner \
-  python -m pytest backend/tests/test_load_scenario.py -v --api-base-url=http://backend:8000
+  python -m pytest backend/tests/test_07_load_scenario.py -v --api-base-url=http://backend:8000
 ```
 
 From the **host** (with backend published on port 8000): `--api-base-url=http://127.0.0.1:8000`.

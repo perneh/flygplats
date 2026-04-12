@@ -127,6 +127,14 @@ async def list_all_courses(host: str, port: int) -> list[dict[str, Any]]:
     return r.json()
 
 
+async def get_course_statistics(host: str, port: int, course_id: int) -> dict[str, Any]:
+    """GET /courses/{id}/statistics — aggregated player and per-hole activity on the course."""
+    client = _client(host, port)
+    r = await client.get(f"{PREFIX}/courses/{course_id}/statistics")
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
 async def add_course(host: str, port: int, name: str, *, description: str | None = None) -> int:
     client = _client(host, port)
     body: dict[str, Any] = {"name": name}

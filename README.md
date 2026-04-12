@@ -1,20 +1,104 @@
 # Golf desktop (monorepo)
 
-FastAPI backend, PySide6 desktop client, shared test utilities, and Docker Compose for PostgreSQL, API, GUI, and a dedicated test image.
+FastAPI backend, PySide6 desktop client, shared test utilities, and **Docker Compose** for running **all stack components** (database, API, GUI container, optional test runner).
 
-**Check your machine:** macOS/Linux — `./scripts/setup.sh` · Windows — `powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1` · **Docker Compose (macOS, GUI in Docker):** `./scripts/docker-up.sh up --build` runs a display check first — see [infra/README.md](infra/README.md).
+## Documentation index
 
-## Quick start (local, no Docker)
+| Document | Contents |
+|----------|----------|
+| **[README.md](README.md)** (this file) | Docker Compose (all services), temporary host-desktop workaround, tests, pre-commit |
+| **[tests/README.md](tests/README.md)** | Running pytest for the repo, `-x` / `--maxfail`, links to pytest docs |
+| **[backend/tests/README.md](backend/tests/README.md)** | API test style, `test_01`–`test_07` collection order, integration mode |
+| **[infra/README.md](infra/README.md)** | Docker Compose, GUI/X11, test-runner, Linux overrides |
 
-1. Create a virtualenv and install dev dependencies **from the repository root**:
+---
+
+## Recommended: run everything with Docker Compose
+
+The intended way to run the **database**, **API**, and **desktop GUI** is Compose. Optional **integration tests** use the `tests` profile.
+
+| Service | Role |
+|---------|------|
+| `db` | PostgreSQL |
+| `backend` | FastAPI on [http://127.0.0.1:8000](http://127.0.0.1:8000) (`/docs`, `/health`) |
+| `frontend` | PySide6 app in a container (needs X11 / display — see [infra/README.md](infra/README.md)) |
+| `test-runner` | Pytest against the live API (`--profile tests`) |
+
+From the **repository root**:
+
+```bash
+cp .env.example .env   # optional: FRONTEND_DISPLAY, etc.
+./scripts/docker-up.sh up --build
+```
+
+On **macOS**, `docker-up.sh` requires **X11 TCP** on port **6000** (XQuartz) before starting **frontend**. Without the helper:
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+Compose sets **`DISPLAY=host.docker.internal:0`** by default — it does **not** copy your shell’s **`DISPLAY=:0`** (that would break Qt inside the container). Override only with **`FRONTEND_DISPLAY`** in `.env` if needed.
+
+The GUI window shows through **XQuartz** (X11), not as a normal macOS window on the main desktop — switch to the **XQuartz** app in the Dock to see it. See [infra/README.md — No window on the Mac (XQuartz)](infra/README.md#no-window-on-the-mac-xquartz).
+
+**Tests in Docker** (start `db` + `backend` first, same Compose project):
+
+```bash
+docker compose -f infra/docker-compose.yml --profile tests run --rm test-runner
+```
+
+For an interactive shell in the test image:
+
+```bash
+docker compose -f infra/docker-compose.yml --profile tests run --rm -it --entrypoint /bin/bash test-runner
+```
+
+More detail: [infra/README.md](infra/README.md) (XQuartz, Linux X11, load scenario, networking).
+
+---
+
+## Temporary workaround: API in Docker, desktop on the host
+
+Use this **only when you cannot run the GUI in Docker** (for example display or X11 issues) or for a quick local iteration without rebuilding the **frontend** image. It is **not** the long-term setup; prefer the Compose stack above.
+
+1. Start the database and API:
+
+   ```bash
+   docker compose -f infra/docker-compose.yml up -d --build db backend
+   ```
+
+2. On the **host**, install dev dependencies and run the desktop against the published API:
 
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate   # Windows: .venv\Scripts\activate
    pip install -r requirements-dev.txt
+   export API_BASE_URL=http://127.0.0.1:8000
+   PYTHONPATH=frontend python3 -m golf_desktop
    ```
 
-2. Run the API (requires a PostgreSQL URL or use Docker for the database only):
+`requirements-dev.txt` includes backend, frontend, and test tooling so you can run pytest and tools from the same venv.
+
+**Pytest on the host** against the Dockerized API:
+
+```bash
+export PYTEST_API_BASE_URL=http://127.0.0.1:8000
+python -m pytest backend/tests
+```
+
+---
+
+## Alternative: everything local (no Docker)
+
+1. **Virtualenv** (from repo root):
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements-dev.txt
+   ```
+
+2. **API** (PostgreSQL must be reachable):
 
    ```bash
    export DATABASE_URL=postgresql+asyncpg://golf:golf@localhost:5432/golf
@@ -22,41 +106,27 @@ FastAPI backend, PySide6 desktop client, shared test utilities, and Docker Compo
    uvicorn app.main:app --reload --app-dir backend
    ```
 
-3. Run the desktop app (with the API reachable):
+3. **Desktop** (same as recommended):
 
    ```bash
    export API_BASE_URL=http://127.0.0.1:8000
-   PYTHONPATH=frontend python -m golf_desktop
+   PYTHONPATH=frontend python3 -m golf_desktop
    ```
 
-   Use the same virtualenv as step 1 (`requirements-dev.txt` installs backend, frontend, and `golf_test_support`).
-
-4. Run tests:
+4. **Tests** (in-process API + SQLite by default; omit `PYTEST_API_BASE_URL`):
 
    ```bash
    python -m pytest backend/tests frontend/tests
    ```
 
-More detail: [infra/README.md](infra/README.md) (Docker Compose, GUI on Linux/X11, test container shell).
+---
 
-## Docker Compose (database + backend + GUI)
+## Machine setup scripts (optional)
 
-From the **repository root**:
+- **macOS / Linux:** `./scripts/setup.sh`
+- **Windows:** `powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1`
 
-```bash
-cp .env.example .env   # optional: FRONTEND_DISPLAY, see infra/README.md
-./scripts/docker-up.sh up --build
-```
-
-(`docker-up.sh` on **macOS** runs **`scripts/check-docker-frontend-display.sh`** before starting **frontend** so you avoid Qt **`could not connect to display`** / xcb errors when X11 is not ready. Use `./scripts/docker-up.sh --skip-frontend-display-check up --build` to bypass, or `docker compose … up db backend` for API+DB only.)
-
-- API: `http://localhost:8000` (see `/health` and `/docs`).
-- On **macOS**, full troubleshooting: [infra/README.md](infra/README.md) (XQuartz + TCP, **`FRONTEND_DISPLAY`**, **`QT_X11_NO_MITSHM`**). Easiest fallback: `./scripts/docker-up.sh up --build db backend` and run the GUI on the host.
-- On **Linux**, use `infra/docker-compose.linux-x11.yml` and set **`DISPLAY` / `FRONTEND_DISPLAY`** to **`:0`** (see [infra/README.md](infra/README.md)).
-
-## Tests in Docker
-
-The `test-runner` service is behind the Compose **profile** `tests`. See [infra/README.md](infra/README.md) for how to run the default test command and how to open an interactive shell inside the test image to run `pytest` yourself.
+---
 
 ## Pre-commit
 

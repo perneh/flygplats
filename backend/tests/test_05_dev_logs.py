@@ -3,6 +3,10 @@ Tests for GET /api/v1/dev/log*, /dev/log/meta, /dev/log/tail.
 
 Uses a temporary log file (``monkeypatch`` on ``settings.log_file_path``) so tests do not
 depend on the host ``/tmp/golf-api.log``.
+
+These tests only work **in-process** (same Python process as the API). When pytest targets
+a remote API (``PYTEST_API_BASE_URL`` or ``--api-base-url``), ``conftest`` does not collect
+this file — the test-runner image has no ``app`` package, and monkeypatch cannot reach the server.
 """
 
 from __future__ import annotations

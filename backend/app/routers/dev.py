@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.seed_init_data import seed_golf_clubs_if_empty_session
+from app.seed_init_data import seed_golf_clubs_if_empty_session, seed_init_courses_if_empty_session
 from app.services.factory_service import factory_service
 
 router = APIRouter()
@@ -13,15 +13,19 @@ router = APIRouter()
 @router.post(
     "/factory-default",
     status_code=status.HTTP_200_OK,
-    summary="Delete all players, courses, holes, rounds, and shots",
+    summary="Wipe domain data and reload bundled init_data (courses + golf clubs)",
 )
 async def factory_default(session: AsyncSession = Depends(get_session)) -> dict[str, str]:
     """
-    Reset the database to an empty domain state.
+    Remove all players, rounds, shots, holes, courses, and golf clubs, then insert rows from
+    ``init_data/golf_courses_25.json`` and ``init_data/golf_clubs.json`` when those tables are empty
+    (they are after the delete). Same catalog as Docker/CLI seed.
 
     Intended for automated tests and local dev. Disable or protect in production deployments.
     """
     await factory_service.clear_all_data(session)
+    await seed_init_courses_if_empty_session(session)
+    await seed_golf_clubs_if_empty_session(session)
     await session.commit()
     return {"status": "ok"}
 

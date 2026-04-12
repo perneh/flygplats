@@ -54,11 +54,11 @@ def _hole_geo_pairs(hole: dict[str, Any]) -> list[tuple[float, float]]:
     ]
 
 
-async def seed_init_courses_if_empty() -> bool:
+async def seed_init_courses_if_empty_session(session: AsyncSession) -> bool:
     """
     Insert courses and holes from JSON when ``courses`` is empty.
 
-    Returns True if seed ran, False if skipped.
+    Caller commits. Used by CLI seed, ``factory-default`` (after wipe), and Docker entrypoint.
     """
     path = _json_path()
     if not path.is_file():
@@ -71,64 +71,71 @@ async def seed_init_courses_if_empty() -> bool:
         logger.error("Invalid JSON: expected golf_courses array")
         return False
 
-    async with async_session_maker() as session:
-        r = await session.execute(select(func.count()).select_from(Course))
-        existing = r.scalar_one()
-        if existing and existing > 0:
-            logger.info("Database already has %s course(s); skipping init seed", existing)
-            return False
+    r = await session.execute(select(func.count()).select_from(Course))
+    existing = r.scalar_one()
+    if existing and existing > 0:
+        logger.info("Database already has %s course(s); skipping init seed", existing)
+        return False
 
-        for c in courses_data:
-            name = str(c.get("name") or "Unnamed")
-            country = (c.get("country") or None) and str(c.get("country"))
-            catalog = c.get("id")
-            catalog_id = int(catalog) if catalog is not None else None
+    for c in courses_data:
+        name = str(c.get("name") or "Unnamed")
+        country = (c.get("country") or None) and str(c.get("country"))
+        catalog = c.get("id")
+        catalog_id = int(catalog) if catalog is not None else None
 
-            course = Course(
-                name=name,
-                country=country,
-                catalog_id=catalog_id,
-                description=None,
-            )
-            session.add(course)
-            await session.flush()
+        course = Course(
+            name=name,
+            country=country,
+            catalog_id=catalog_id,
+            description=None,
+        )
+        session.add(course)
+        await session.flush()
 
-            holes_raw = c.get("holes") or []
-            all_pairs: list[tuple[float, float]] = []
-            for h in holes_raw:
-                all_pairs.extend(_hole_geo_pairs(h))
-            bounds = bounds_from_latlng_pairs(all_pairs)
+        holes_raw = c.get("holes") or []
+        all_pairs: list[tuple[float, float]] = []
+        for h in holes_raw:
+            all_pairs.extend(_hole_geo_pairs(h))
+        bounds = bounds_from_latlng_pairs(all_pairs)
 
-            for h in holes_raw:
-                num = int(h["hole"])
-                par = int(h["par"])
-                length_m = float(h["length_m"])
-                tee_d = h.get("tee") or {}
-                green_d = h.get("green") or {}
-                t_lat, t_lng = float(tee_d["lat"]), float(tee_d["lng"])
-                g_lat, g_lng = float(green_d["lat"]), float(green_d["lng"])
-                tx, ty = project_latlng_to_canvas(t_lat, t_lng, bounds)
-                gx, gy = project_latlng_to_canvas(g_lat, g_lng, bounds)
-                session.add(
-                    Hole(
-                        course_id=course.id,
-                        number=num,
-                        par=par,
-                        length_m=length_m,
-                        tee_lat=t_lat,
-                        tee_lng=t_lng,
-                        green_lat=g_lat,
-                        green_lng=g_lng,
-                        tee_x=tx,
-                        tee_y=ty,
-                        green_x=gx,
-                        green_y=gy,
-                    )
+        for h in holes_raw:
+            num = int(h["hole"])
+            par = int(h["par"])
+            length_m = float(h["length_m"])
+            tee_d = h.get("tee") or {}
+            green_d = h.get("green") or {}
+            t_lat, t_lng = float(tee_d["lat"]), float(tee_d["lng"])
+            g_lat, g_lng = float(green_d["lat"]), float(green_d["lng"])
+            tx, ty = project_latlng_to_canvas(t_lat, t_lng, bounds)
+            gx, gy = project_latlng_to_canvas(g_lat, g_lng, bounds)
+            session.add(
+                Hole(
+                    course_id=course.id,
+                    number=num,
+                    par=par,
+                    length_m=length_m,
+                    tee_lat=t_lat,
+                    tee_lng=t_lng,
+                    green_lat=g_lat,
+                    green_lng=g_lng,
+                    tee_x=tx,
+                    tee_y=ty,
+                    green_x=gx,
+                    green_y=gy,
                 )
+            )
 
-        await session.commit()
-        logger.info("Seeded %s courses from %s", len(courses_data), path)
-        return True
+    logger.info("Seeded %s courses from %s", len(courses_data), path)
+    return True
+
+
+async def seed_init_courses_if_empty() -> bool:
+    """CLI / Docker entrypoint: own session and commit if seed ran."""
+    async with async_session_maker() as session:
+        ran = await seed_init_courses_if_empty_session(session)
+        if ran:
+            await session.commit()
+        return ran
 
 
 async def seed_golf_clubs_if_empty_session(session: AsyncSession) -> bool:

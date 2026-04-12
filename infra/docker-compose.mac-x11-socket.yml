@@ -1,6 +1,9 @@
 # macOS + XQuartz: use the host Unix socket instead of TCP (port 6000).
 # Use when `lsof -iTCP:6000` shows nothing but XQuartz is running (socket exists).
 #
+# Docker Desktop for Mac often cannot connect Qt to :0 via this mount (could not connect to display :0).
+# Prefer enabling XQuartz TCP (port 6000) and the default compose DISPLAY=host.docker.internal:0 — see infra/README.md.
+#
 #   docker compose -f infra/docker-compose.yml -f infra/docker-compose.mac-x11-socket.yml up --build
 #
 # Or use ./scripts/docker-up.sh — it selects this file automatically when TCP :0 is

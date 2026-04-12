@@ -1,46 +1,70 @@
-# Tests
+# Tests (monorepo)
 
-- **Backend API tests** — **httpx** + `ASGITransport` for FastAPI: [../backend/tests/README.md](../backend/tests/README.md)
+Pytest discovers **`backend/tests`** and **`frontend/tests`** (see [`pyproject.toml`](../pyproject.toml)).
+
+**Pytest documentation:** [https://docs.pytest.org/en/stable/](https://docs.pytest.org/en/stable/) · [Command-line usage](https://docs.pytest.org/en/stable/how-to/usage.html)
+
+---
+
+## Documentation in this repo
+
+| README | Topics |
+|--------|--------|
+| [Root README](../README.md) | Quick start, Docker, desktop app, pre-commit |
+| [Backend API tests](../backend/tests/README.md) | httpx fixtures, integration mode, `test_01`–`test_07`, pytest flags (`-x`, …) |
+| [infra/README.md](../infra/README.md) | Compose, GUI/X11, **test-runner** image |
+
+---
 
 ## Run on the host
 
-From the repository root, with dev dependencies installed (`requirements-dev.txt`):
+From the **repository root**, with dev dependencies installed (`requirements-dev.txt`):
 
 ```bash
 python3 -m pytest
 ```
 
-Paths and options are read from the repo **`pyproject.toml`** (`testpaths`, `addopts`).  
-`backend/tests/test_load_scenario.py` **requires** `--api-base-url` (or host/port / env); without it that test **errors**. To skip it: `--ignore=backend/tests/test_load_scenario.py`.
+Options and search paths come from **`pyproject.toml`** (`testpaths`, `addopts`).
 
-### More / less output (pytest flags)
+### Stop on first failure
+
+```bash
+python3 -m pytest -x
+```
+
+Same idea with a limit:
+
+```bash
+python3 -m pytest --maxfail=1
+```
+
+### More / less output
 
 | Goal | Example |
 |------|---------|
-| Default (repo) | One line per test (`PASSED`/`FAILED`), short tracebacks, **extra summary** for skip/xfail (`-ra`), **slowest 15 tests** (`--durations=15`) — see `[tool.pytest.ini_options]` in `pyproject.toml` |
+| Default (repo) | Short tracebacks, slowest durations — see `[tool.pytest.ini_options]` in `pyproject.toml` |
 | Extra verbose | `python3 -m pytest -vv` |
-| Quieter | `python3 -m pytest -q` (overrides `-v` from config) |
-| Stop on first failure | `python3 -m pytest -x` |
-| Only tests matching a name | `python3 -m pytest -k "api and not slow"` |
-| Full traceback | `python3 -m pytest --tb=long` |
+| Quieter | `python3 -m pytest -q` |
+| Name filter | `python3 -m pytest -k "api and not load"` |
 
-**Environment:** `PYTEST_ADDOPTS` is appended (e.g. `export PYTEST_ADDOPTS='--durations=30 -vv'`).
+**`PYTEST_ADDOPTS`** is appended (e.g. `export PYTEST_ADDOPTS='-x --tb=long'`).
 
-GUI tests use **pytest-qt**; for headless runs use `QT_QPA_PLATFORM=offscreen` (set in the `test-runner` Docker image).
+### Backend-only
 
-## Run inside Docker
+Details and integration mode: **[backend/tests/README.md](../backend/tests/README.md)**.
 
-The **`test-runner`** image does **not** copy all of `backend/` — only what pytest needs: `backend/app` (the FastAPI app is imported in-process for API tests), `backend/tests`, `backend/init_data`, and `backend/requirements-core.txt`. Alembic, runtime Dockerfiles, etc. stay out of the image.
-
-See [../infra/README.md](../infra/README.md) — section **Test runner service** — for:
-
-- One-shot `pytest` via Compose
-- Opening an interactive shell in the `test-runner` image to run `pytest` manually
-
-The image runs **`pytest` without `-q`**, so you get the same **verbose per-test status** as on the host (from `pyproject.toml`). To force quiet in Docker:
+`backend/tests/test_07_load_scenario.py` **requires** `--api-base-url` (or host/port / env). Without it, that module errors by design. Skip it:
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile tests run --rm -e PYTEST_ADDOPTS=-q test-runner
+python3 -m pytest --ignore=backend/tests/test_07_load_scenario.py
 ```
 
-Shared assertions live in `packages/test_support` (`golf_test_support`).
+---
+
+## Run inside Docker (`test-runner`)
+
+The **`test-runner`** image contains **`backend/tests`** and **`backend/init_data`** (JSON fixtures), **not** the full `backend/app` — API tests call **`http://backend:8000`** via **`PYTEST_API_BASE_URL`**.
+
+See **[infra/README.md](../infra/README.md)** (Test runner service): build, `docker compose run`, and interactive shell.
+
+Shared assertions: **`packages/test_support`** (`golf_test_support`). GUI tests use **pytest-qt**; the image sets **`QT_QPA_PLATFORM=offscreen`**.

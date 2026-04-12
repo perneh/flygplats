@@ -5,7 +5,7 @@
 #   bash scripts/check-docker-frontend-display.sh              # human, warnings only
 #   bash scripts/check-docker-frontend-display.sh --strict       # human, strict exit
 #   bash scripts/check-docker-frontend-display.sh --emit-env     # for docker-up.sh: prints
-#       export GOLF_X11_TRANSPORT=tcp|socket|skip  (stdout only, stderr for errors)
+#       export GOLF_X11_TRANSPORT=tcp|skip  (stdout only, stderr for errors)
 #
 # See: infra/README.md, .env.example (FRONTEND_DISPLAY).
 
@@ -55,16 +55,14 @@ if [[ "$EMIT_ENV" -eq 1 ]]; then
     exit 1
   fi
   if tcp_ok; then
-    emit "export GOLF_X11_TRANSPORT=tcp"
     exit 0
   fi
-  if socket_ok; then
-    emit "export GOLF_X11_TRANSPORT=socket"
-    exit 0
-  fi
-  echo "No TCP :0 (port 6000) and no /tmp/.X11-unix socket. Start XQuartz, then:" >&2
-  echo "  defaults write org.xquartz.X11 nolisten_tcp -boolean false  # then quit & reopen XQuartz" >&2
-  echo "Or see infra/README.md (Unix socket compose file)." >&2
+  echo "X11 TCP (port 6000) is not listening — the GUI container needs it (FRONTEND_DISPLAY=host.docker.internal:0)." >&2
+  echo "Your shell may have DISPLAY=:0; compose no longer forwards that (it would break Qt inside Docker)." >&2
+  echo "Enable TCP:  defaults write org.xquartz.X11 nolisten_tcp -boolean false" >&2
+  echo "Quit XQuartz fully, reopen. Then:  export DISPLAY=:0  /opt/X11/bin/xhost +localhost" >&2
+  echo "Verify:  lsof -nP -iTCP:6000 -sTCP:LISTEN" >&2
+  echo "See infra/README.md (macOS + XQuartz)." >&2
   exit 1
 fi
 
@@ -109,9 +107,9 @@ fi
 echo
 echo "Unix socket /tmp/.X11-unix (alternative when TCP is off):"
 if socket_ok; then
-  ok "X11 socket present (./scripts/docker-up.sh can use docker-compose.mac-x11-socket.yml)"
+  ok "X11 Unix socket present (/tmp/.X11-unix)"
   if [[ "$FAIL" -eq 1 ]]; then
-    info "TCP failed but socket exists — docker-up will use the socket override automatically."
+    info "TCP is still required for docker-up / default compose (host.docker.internal:0). Socket-only overrides are unreliable on Docker Desktop."
     FAIL=0
   fi
 else

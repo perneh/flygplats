@@ -26,6 +26,9 @@ def main() -> None:
         api = GolfApiClient(api_base)
         win = MainWindow(api)
         win.show()
+        # X11 over TCP/Docker: window may open behind other apps or on the XQuartz desktop.
+        win.raise_()
+        win.activateWindow()
         await stop.wait()
         await api.aclose()
 

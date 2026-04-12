@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Run docker compose from repo root. On macOS, before `up` that starts the frontend
 # service, runs scripts/check-docker-frontend-display.sh --emit-env unless skipped.
-# If TCP :0 (port 6000) is unavailable but /tmp/.X11-unix exists, adds
-# infra/docker-compose.mac-x11-socket.yml automatically.
+# Requires X11 TCP on port 6000 (see check-docker-frontend-display.sh). Optional manual
+# socket override: infra/docker-compose.mac-x11-socket.yml (often unreliable on Docker Desktop).
 #
 # Usage (from repo root):
 #   ./scripts/docker-up.sh up --build
@@ -53,11 +53,6 @@ if [[ "$(uname -s)" == "Darwin" && "$SKIP_CHECK" -eq 0 && "$start_frontend" -eq 
     echo "Bypass:  $0 --skip-frontend-display-check $*"
     echo "Or API+DB only:  docker compose -f infra/docker-compose.yml up --build db backend"
     exit 1
-  fi
-  if [[ "${GOLF_X11_TRANSPORT:-}" == socket ]]; then
-    echo "Using X11 Unix socket (infra/docker-compose.mac-x11-socket.yml). XQuartz must be running."
-    echo ""
-    COMPOSE+=( -f "$ROOT/infra/docker-compose.mac-x11-socket.yml" )
   fi
 fi
 

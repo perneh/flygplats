@@ -1,5 +1,15 @@
 # Run from repository root: docker compose -f infra/docker-compose.yml up --build
 # Or: cd infra && docker compose up --build
+#
+# Services:
+#   db          — PostgreSQL
+#   backend     — FastAPI (port 8000)
+#   frontend    — PySide6 desktop (needs a display; see infra/README.md)
+#   test-runner — pytest (profile "tests"; HTTP client to backend)
+#
+# Project name (container/network/volume prefix): golf-infra — avoids the vague default "infra".
+
+name: golf-infra
 
 services:
   db:
@@ -27,6 +37,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
 
   frontend:
     build:
@@ -34,15 +54,17 @@ services:
       dockerfile: infra/Dockerfile.frontend
     environment:
       API_BASE_URL: http://backend:8000
-      # FRONTEND_DISPLAY in .env overrides (see .env.example). Fallback: host DISPLAY, then Docker Desktop host.
-      # Linux GUI: use -f infra/docker-compose.linux-x11.yml and set FRONTEND_DISPLAY=:0 (or export DISPLAY=:0).
-      DISPLAY: ${FRONTEND_DISPLAY:-${DISPLAY:-host.docker.internal:0}}
+      # Use FRONTEND_DISPLAY in .env only — do NOT inherit the host shell's DISPLAY.
+      # If DISPLAY=:0 is passed in, Qt looks for a Unix socket *inside the container* (wrong on macOS).
+      # Linux + X11 socket: set FRONTEND_DISPLAY=:0 in .env and use infra/docker-compose.linux-x11.yml.
+      DISPLAY: ${FRONTEND_DISPLAY:-host.docker.internal:0}
       # Avoid MIT-SHM over TCP/Docker; fixes many "could not connect to display" / blank window cases.
       QT_X11_NO_MITSHM: "1"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   test-runner:
     build:
@@ -52,6 +74,11 @@ services:
       - tests
     environment:
       QT_QPA_PLATFORM: offscreen
+      # HTTP client only: no backend code in this image; talk to the backend service.
+      PYTEST_API_BASE_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:

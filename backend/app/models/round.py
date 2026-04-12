@@ -19,4 +19,7 @@ class Round(Base):
 
     player: Mapped["Player"] = relationship(back_populates="rounds")
     course: Mapped["Course"] = relationship(back_populates="rounds")
-    shots: Mapped[list["Shot"]] = relationship(back_populates="round")
+    shots: Mapped[list["Shot"]] = relationship(
+        back_populates="round",
+        passive_deletes=True,
+    )

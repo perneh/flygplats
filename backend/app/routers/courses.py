@@ -3,9 +3,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.schemas.course import CourseCreate, CourseRead, CourseUpdate
+from app.schemas.course_statistics import CourseStatisticsRead
 from app.services.course_service import course_service
 
 router = APIRouter()
+
+
+@router.get("/{course_id}/statistics", response_model=CourseStatisticsRead)
+async def get_course_statistics(course_id: int, session: AsyncSession = Depends(get_session)):
+    """
+    Aggregates **rounds**, **strokes per player**, and **per-hole shot counts** on this course
+    (all rounds / matches recorded for the course).
+    """
+    out = await course_service.get_statistics(session, course_id)
+    if not out:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return out
 
 
 @router.get("", response_model=list[CourseRead])
