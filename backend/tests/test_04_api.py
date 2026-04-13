@@ -15,26 +15,49 @@ import pytest
 from golf_test_support import assert_shot_equals, assert_status_ok
 
 from tests.support.api_actions import (
-    PREFIX,
     add_course,
     add_hole_to_course,
     add_player,
     create_round_for_player_on_course,
+    delete_course,
+    delete_hole,
     delete_player,
+    delete_round,
+    delete_shot,
+    fetch_course,
+    fetch_course_hole,
+    fetch_courses,
+    fetch_golf_club,
+    fetch_golf_clubs,
+    fetch_hole,
+    fetch_holes,
+    fetch_player,
+    fetch_player_performance,
+    fetch_round,
+    fetch_round_shots,
+    fetch_rounds,
+    fetch_shot,
     filter_rounds_occuring_on_calendar_day,
+    get_course_hole_facts,
+    get_course_hole_statistics,
     get_course_statistics,
     get_health_status,
     get_player_data,
     get_player_results_and_measurements_for_course_on_day,
-    http_delete,
-    http_get,
-    http_patch,
-    http_post,
     list_all_courses,
     list_all_players,
     list_rounds_for_player_on_course,
     list_shot_measurements_for_round,
     list_shot_measurements_for_round_and_hole,
+    patch_course,
+    patch_golf_club,
+    patch_hole,
+    patch_round,
+    patch_shot,
+    post_factory_default,
+    post_golf_club,
+    post_match,
+    post_shot,
     record_shot_measurement,
     update_player_name,
 )
@@ -69,7 +92,7 @@ async def test_player_can_register_view_rename_and_be_removed(api_host, api_port
 
     await delete_player(api_host, api_port, player_id)
 
-    r = await http_get(api_host, api_port, f"/api/v1/players/{player_id}")
+    r = await fetch_player(api_host, api_port, player_id)
     assert r.status_code == 404
 
 
@@ -127,11 +150,10 @@ async def test_recording_a_shot_without_club_name_is_accepted(api_host, api_port
     player_id = await add_player(api_host, api_port, "Q")
     round_id = await create_round_for_player_on_course(api_host, api_port, player_id, course_id)
 
-    r = await http_post(
+    r = await post_shot(
         api_host,
         api_port,
-        "/api/v1/shots",
-        json={
+        {
             "round_id": round_id,
             "hole_id": hole_id,
             "x": 0.0,
@@ -193,7 +215,7 @@ async def test_players_list_get_performance(api_host, api_port):
     players = await list_all_players(api_host, api_port)
     assert any(p["name"] == "Listed" for p in players)
     pid = next(p["id"] for p in players if p["name"] == "Listed")
-    r = await http_get(api_host, api_port, f"{PREFIX}/players/{pid}/performance")
+    r = await fetch_player_performance(api_host, api_port, pid)
     assert r.status_code == 200
     body = r.json()
     assert body["player_id"] == pid
@@ -202,13 +224,13 @@ async def test_players_list_get_performance(api_host, api_port):
 
 @pytest.mark.asyncio
 async def test_courses_list_get_patch_statistics_delete(api_host, api_port):
-    """GET /courses, GET /courses/{id}, GET /courses/{id}/statistics, PATCH, DELETE."""
+    """GET /courses, nested hole facts/statistics, GET /courses/{id}, statistics, PATCH, DELETE."""
     cid = await add_course(api_host, api_port, "Surface Course", description="d")
-    r_list = await http_get(api_host, api_port, f"{PREFIX}/courses")
+    r_list = await fetch_courses(api_host, api_port)
     assert r_list.status_code == 200
     assert any(c["id"] == cid for c in r_list.json())
 
-    r_one = await http_get(api_host, api_port, f"{PREFIX}/courses/{cid}")
+    r_one = await fetch_course(api_host, api_port, cid)
     assert r_one.status_code == 200
     assert r_one.json()["name"] == "Surface Course"
 
@@ -216,15 +238,45 @@ async def test_courses_list_get_patch_statistics_delete(api_host, api_port):
     assert stats["total_rounds"] == 0
     assert stats["players"] == []
 
-    r_patch = await http_patch(
-        api_host, api_port, f"{PREFIX}/courses/{cid}", json={"name": "Surface Course Renamed"}
-    )
+    h1 = await add_hole_to_course(api_host, api_port, cid, 1, par=4)
+    facts = await get_course_hole_facts(api_host, api_port, cid, 1)
+    assert facts["hole"] == 1
+    assert facts["id"] == h1["id"]
+    assert facts["par"] == 4
+
+    hstats = await get_course_hole_statistics(api_host, api_port, cid, 1)
+    assert hstats["hole_number"] == 1
+    assert hstats["total_strokes_recorded"] == 0
+    assert hstats["rounds_with_shots_on_hole"] == 0
+    assert hstats["players"] == []
+
+    assert (await fetch_course_hole(api_host, api_port, cid, 2)).status_code == 404
+    assert (await fetch_course_hole(api_host, api_port, 99999, 1)).status_code == 404
+    assert (await fetch_course_hole(api_host, api_port, cid, 99)).status_code == 422
+
+    r_patch = await patch_course(api_host, api_port, cid, {"name": "Surface Course Renamed"})
     assert r_patch.status_code == 200
     assert r_patch.json()["name"] == "Surface Course Renamed"
 
-    r_del = await http_delete(api_host, api_port, f"{PREFIX}/courses/{cid}")
+    r_del = await delete_course(api_host, api_port, cid)
     assert r_del.status_code == 204
-    assert (await http_get(api_host, api_port, f"{PREFIX}/courses/{cid}")).status_code == 404
+    assert (await fetch_course(api_host, api_port, cid)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_course_hole_statistics_counts_shots(api_host, api_port):
+    """GET /courses/{id}/holes/{n}/statistics includes strokes after rounds record shots on that hole."""
+    cid = await add_course(api_host, api_port, "Hole stat course")
+    h1 = await add_hole_to_course(api_host, api_port, cid, 1, par=4)
+    pid = await add_player(api_host, api_port, "HoleStatP")
+    rid = await create_round_for_player_on_course(api_host, api_port, pid, cid)
+    await record_shot_measurement(api_host, api_port, rid, h1["id"], 1.0, 2.0, club="I")
+    hstats = await get_course_hole_statistics(api_host, api_port, cid, 1)
+    assert hstats["total_strokes_recorded"] == 1
+    assert hstats["rounds_with_shots_on_hole"] == 1
+    assert len(hstats["players"]) == 1
+    assert hstats["players"][0]["player_id"] == pid
+    assert hstats["players"][0]["strokes_on_hole"] == 1
 
 
 @pytest.mark.asyncio
@@ -234,21 +286,21 @@ async def test_holes_list_get_patch_delete(api_host, api_port):
     h = await add_hole_to_course(api_host, api_port, cid, 1, par=4)
     hole_id = h["id"]
 
-    r_list = await http_get(api_host, api_port, f"{PREFIX}/holes", params={"course_id": cid})
+    r_list = await fetch_holes(api_host, api_port, course_id=cid)
     assert r_list.status_code == 200
     assert len(r_list.json()) == 1
 
-    r_get = await http_get(api_host, api_port, f"{PREFIX}/holes/{hole_id}")
+    r_get = await fetch_hole(api_host, api_port, hole_id)
     assert r_get.status_code == 200
     assert r_get.json()["hole"] == 1
 
-    r_patch = await http_patch(api_host, api_port, f"{PREFIX}/holes/{hole_id}", json={"par": 5})
+    r_patch = await patch_hole(api_host, api_port, hole_id, {"par": 5})
     assert r_patch.status_code == 200
     assert r_patch.json()["par"] == 5
 
-    r_del = await http_delete(api_host, api_port, f"{PREFIX}/holes/{hole_id}")
+    r_del = await delete_hole(api_host, api_port, hole_id)
     assert r_del.status_code == 204
-    assert (await http_get(api_host, api_port, f"{PREFIX}/holes/{hole_id}")).status_code == 404
+    assert (await fetch_hole(api_host, api_port, hole_id)).status_code == 404
 
 
 @pytest.mark.asyncio
@@ -259,32 +311,30 @@ async def test_rounds_get_patch_delete_and_nested_shots_route(api_host, api_port
     hole = await add_hole_to_course(api_host, api_port, cid, 1)
     round_id = await create_round_for_player_on_course(api_host, api_port, pid, cid)
 
-    r_all = await http_get(api_host, api_port, f"{PREFIX}/rounds")
+    r_all = await fetch_rounds(api_host, api_port)
     assert r_all.status_code == 200
     assert any(x["id"] == round_id for x in r_all.json())
 
-    r_one = await http_get(api_host, api_port, f"{PREFIX}/rounds/{round_id}")
+    r_one = await fetch_round(api_host, api_port, round_id)
     assert r_one.status_code == 200
     assert r_one.json()["player_id"] == pid
 
-    r_shots = await http_get(api_host, api_port, f"{PREFIX}/rounds/{round_id}/shots")
+    r_shots = await fetch_round_shots(api_host, api_port, round_id)
     assert r_shots.status_code == 200
     assert r_shots.json() == []
 
     await record_shot_measurement(api_host, api_port, round_id, hole["id"], 1.0, 2.0, club="D")
-    r_shots2 = await http_get(api_host, api_port, f"{PREFIX}/rounds/{round_id}/shots")
+    r_shots2 = await fetch_round_shots(api_host, api_port, round_id)
     assert len(r_shots2.json()) == 1
 
     fin = datetime.now(timezone.utc).isoformat()
-    r_patch = await http_patch(
-        api_host, api_port, f"{PREFIX}/rounds/{round_id}", json={"finished_at": fin}
-    )
+    r_patch = await patch_round(api_host, api_port, round_id, {"finished_at": fin})
     assert r_patch.status_code == 200
     assert r_patch.json()["finished_at"] is not None
 
-    r_del = await http_delete(api_host, api_port, f"{PREFIX}/rounds/{round_id}")
+    r_del = await delete_round(api_host, api_port, round_id)
     assert r_del.status_code == 204
-    assert (await http_get(api_host, api_port, f"{PREFIX}/rounds/{round_id}")).status_code == 404
+    assert (await fetch_round(api_host, api_port, round_id)).status_code == 404
 
 
 @pytest.mark.asyncio
@@ -299,19 +349,17 @@ async def test_shots_get_patch_delete(api_host, api_port):
     )
     sid = created["id"]
 
-    r_get = await http_get(api_host, api_port, f"{PREFIX}/shots/{sid}")
+    r_get = await fetch_shot(api_host, api_port, sid)
     assert r_get.status_code == 200
     assert r_get.json()["club"] == "P"
 
-    r_patch = await http_patch(
-        api_host, api_port, f"{PREFIX}/shots/{sid}", json={"club": "Putter", "distance": 12.0}
-    )
+    r_patch = await patch_shot(api_host, api_port, sid, {"club": "Putter", "distance": 12.0})
     assert r_patch.status_code == 200
     assert r_patch.json()["club"] == "Putter"
 
-    r_del = await http_delete(api_host, api_port, f"{PREFIX}/shots/{sid}")
+    r_del = await delete_shot(api_host, api_port, sid)
     assert r_del.status_code == 204
-    assert (await http_get(api_host, api_port, f"{PREFIX}/shots/{sid}")).status_code == 404
+    assert (await fetch_shot(api_host, api_port, sid)).status_code == 404
 
 
 @pytest.mark.asyncio
@@ -327,21 +375,19 @@ async def test_golf_clubs_post_get_list_patch(api_host, api_port):
         "avg_distance_m": 70,
         "player_level": ["Beginner"],
     }
-    r_post = await http_post(api_host, api_port, f"{PREFIX}/golf-clubs", json=body)
+    r_post = await post_golf_club(api_host, api_port, body)
     assert r_post.status_code == 201
     club_id = r_post.json()["id"]
 
-    r_list = await http_get(api_host, api_port, f"{PREFIX}/golf-clubs")
+    r_list = await fetch_golf_clubs(api_host, api_port)
     assert r_list.status_code == 200
     assert any(c["id"] == club_id for c in r_list.json())
 
-    r_get = await http_get(api_host, api_port, f"{PREFIX}/golf-clubs/{club_id}")
+    r_get = await fetch_golf_club(api_host, api_port, club_id)
     assert r_get.status_code == 200
     assert r_get.json()["name"] == "Surface Wedge"
 
-    r_patch = await http_patch(
-        api_host, api_port, f"{PREFIX}/golf-clubs/{club_id}", json={"avg_distance_m": 72}
-    )
+    r_patch = await patch_golf_club(api_host, api_port, club_id, {"avg_distance_m": 72})
     assert r_patch.status_code == 200
     assert r_patch.json()["avg_distance_m"] == 72
 
@@ -366,7 +412,7 @@ async def test_matches_post(api_host, api_port):
             }
         ],
     }
-    r = await http_post(api_host, api_port, f"{PREFIX}/matches", json=payload)
+    r = await post_match(api_host, api_port, payload)
     assert r.status_code == 201
     out = r.json()
     assert len(out["rounds"]) == 2
@@ -378,7 +424,7 @@ async def test_dev_factory_default(api_host, api_port):
     """POST /dev/factory-default — wipes domain data then re-applies bundled init courses/clubs."""
     await add_player(api_host, api_port, "To Wipe")
     assert len(await list_all_players(api_host, api_port)) >= 1
-    r = await http_post(api_host, api_port, f"{PREFIX}/dev/factory-default")
+    r = await post_factory_default(api_host, api_port)
     assert r.status_code == 200
     assert r.json().get("status") == "ok"
     assert await list_all_players(api_host, api_port) == []

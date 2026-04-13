@@ -24,4 +24,7 @@ class Hole(Base):
     green_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     course: Mapped["Course"] = relationship(back_populates="holes")
-    shots: Mapped[list["Shot"]] = relationship(back_populates="hole")
+    shots: Mapped[list["Shot"]] = relationship(
+        back_populates="hole",
+        cascade="all, delete-orphan",
+    )

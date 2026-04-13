@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.schemas.course import CourseCreate, CourseRead, CourseUpdate
 from app.schemas.course_statistics import CourseStatisticsRead
+from app.schemas.hole import HoleRead
+from app.schemas.hole_statistics import HoleStatisticsRead
 from app.services.course_service import course_service
+from app.services.hole_service import hole_service
 
 router = APIRouter()
 
@@ -19,6 +22,38 @@ async def get_course_statistics(course_id: int, session: AsyncSession = Depends(
     if not out:
         raise HTTPException(status_code=404, detail="Course not found")
     return out
+
+
+@router.get("/{course_id}/holes/{hole_number}", response_model=HoleRead)
+async def get_course_hole_facts(
+    course_id: int,
+    hole_number: int = Path(..., ge=1, le=18, description="Hole index on the scorecard (1–18)"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Static hole data for this course: par, length, tee/green coordinates (same as ``GET /holes/{id}``, keyed by course + hole number)."""
+    c = await course_service.get(session, course_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Course not found")
+    h = await hole_service.get_by_course_and_number(session, course_id, hole_number)
+    if not h:
+        raise HTTPException(status_code=404, detail="Hole not found on this course")
+    return HoleRead.from_hole(h)
+
+
+@router.get("/{course_id}/holes/{hole_number}/statistics", response_model=HoleStatisticsRead)
+async def get_course_hole_statistics(
+    course_id: int,
+    hole_number: int = Path(..., ge=1, le=18, description="Hole index on the scorecard (1–18)"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Aggregated shots on this hole: totals, distinct rounds, and per-player stroke counts."""
+    c = await course_service.get(session, course_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Course not found")
+    h = await hole_service.get_by_course_and_number(session, course_id, hole_number)
+    if not h:
+        raise HTTPException(status_code=404, detail="Hole not found on this course")
+    return await course_service.aggregate_hole_statistics(session, c, h)
 
 
 @router.get("", response_model=list[CourseRead])

@@ -9,7 +9,12 @@ In-process tests use an empty SQLite DB unless you add seeding elsewhere.
 
 import pytest
 
-from tests.support.api_actions import PREFIX, http_get, http_patch, http_post
+from tests.support.api_actions import (
+    fetch_golf_club,
+    fetch_golf_clubs,
+    patch_golf_club,
+    post_golf_club,
+)
 from tests.support.bundled_init_counts import GOLF_CLUBS as _BUNDLED_CLUBS
 
 # Does not collide with catalog ids 1–15 in ``golf_clubs.json``.
@@ -29,7 +34,7 @@ _EXTRA_CLUB_BODY = {
 async def test_list_golf_clubs_matches_mode(
     api_host, api_port, api_client, expect_bundled_init_data
 ):
-    r = await http_get(api_host, api_port, f"{PREFIX}/golf-clubs")
+    r = await fetch_golf_clubs(api_host, api_port)
     assert r.status_code == 200
     body = r.json()
     if expect_bundled_init_data:
@@ -43,34 +48,31 @@ async def test_list_golf_clubs_matches_mode(
 async def test_create_list_get_patch_and_missing_returns_404(
     api_host, api_port, api_client, expect_bundled_init_data
 ):
-    created = await http_post(api_host, api_port, f"{PREFIX}/golf-clubs", json=_EXTRA_CLUB_BODY)
+    created = await post_golf_club(api_host, api_port, _EXTRA_CLUB_BODY)
     assert created.status_code == 201
     c0 = created.json()
     assert c0["name"] == "Extra Test Club"
     assert c0["type"] == "Iron"
 
-    listed = await http_get(api_host, api_port, f"{PREFIX}/golf-clubs")
+    listed = await fetch_golf_clubs(api_host, api_port)
     assert listed.status_code == 200
     clubs = listed.json()
     assert len(clubs) == (_BUNDLED_CLUBS + 1 if expect_bundled_init_data else 1)
     club_id = c0["id"]
 
-    one = await http_get(api_host, api_port, f"{PREFIX}/golf-clubs/{club_id}")
+    one = await fetch_golf_club(api_host, api_port, club_id)
     assert one.status_code == 200
     assert one.json()["catalog_id"] == 9999
 
-    patched = await http_patch(
-        api_host,
-        api_port,
-        f"{PREFIX}/golf-clubs/{club_id}",
-        json={"avg_distance_m": 41, "type": "Iron"},
+    patched = await patch_golf_club(
+        api_host, api_port, club_id, {"avg_distance_m": 41, "type": "Iron"}
     )
     assert patched.status_code == 200
     p = patched.json()
     assert p["avg_distance_m"] == 41
     assert p["type"] == "Iron"
 
-    missing = await http_get(api_host, api_port, f"{PREFIX}/golf-clubs/99999")
+    missing = await fetch_golf_club(api_host, api_port, 99999)
     assert missing.status_code == 404
 
 
@@ -79,19 +81,16 @@ async def test_patch_golf_club_player_level(
     api_host, api_port, api_client, expect_bundled_init_data
 ):
     if expect_bundled_init_data:
-        listed = await http_get(api_host, api_port, f"{PREFIX}/golf-clubs")
+        listed = await fetch_golf_clubs(api_host, api_port)
         driver = next(c for c in listed.json() if c["name"] == "Driver")
         club_id = driver["id"]
     else:
-        r = await http_post(api_host, api_port, f"{PREFIX}/golf-clubs", json=_EXTRA_CLUB_BODY)
+        r = await post_golf_club(api_host, api_port, _EXTRA_CLUB_BODY)
         assert r.status_code == 201
         club_id = r.json()["id"]
 
-    r2 = await http_patch(
-        api_host,
-        api_port,
-        f"{PREFIX}/golf-clubs/{club_id}",
-        json={"player_level": ["Beginner", "Intermediate"]},
+    r2 = await patch_golf_club(
+        api_host, api_port, club_id, {"player_level": ["Beginner", "Intermediate"]}
     )
     assert r2.status_code == 200
     assert r2.json()["player_level"] == ["Beginner", "Intermediate"]

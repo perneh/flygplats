@@ -17,6 +17,14 @@ class HoleService:
     async def get(self, session: AsyncSession, hole_id: int) -> Hole | None:
         return await session.get(Hole, hole_id)
 
+    async def get_by_course_and_number(
+        self, session: AsyncSession, course_id: int, hole_number: int
+    ) -> Hole | None:
+        r = await session.execute(
+            select(Hole).where(Hole.course_id == course_id, Hole.number == hole_number)
+        )
+        return r.scalar_one_or_none()
+
     async def create(self, session: AsyncSession, data: HoleCreate) -> Hole:
         if data.tee is not None and data.green is not None:
             pairs = [

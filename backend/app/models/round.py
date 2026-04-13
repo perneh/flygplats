@@ -21,5 +21,6 @@ class Round(Base):
     course: Mapped["Course"] = relationship(back_populates="rounds")
     shots: Mapped[list["Shot"]] = relationship(
         back_populates="round",
+        cascade="all, delete-orphan",
         passive_deletes=True,
     )

@@ -65,6 +65,15 @@ python3 -m pytest --ignore=backend/tests/test_07_load_scenario.py
 
 The **`test-runner`** image contains **`backend/tests`** and **`backend/init_data`** (JSON fixtures), **not** the full `backend/app` — API tests call **`http://backend:8000`** via **`PYTEST_API_BASE_URL`**.
 
-See **[infra/README.md](../infra/README.md)** (Test runner service): build, `docker compose run`, and interactive shell.
+Start **`db`** and **`backend`** with the same Compose project first, then from the **repository root**:
+
+```bash
+docker compose -f infra/docker-compose.yml --profile tests build test-runner
+docker compose -f infra/docker-compose.yml --profile tests run --rm -it --entrypoint /bin/bash test-runner
+```
+
+Inside the container, **`PYTEST_API_BASE_URL`** defaults to **`http://backend:8000`**. Run **`python -m pytest`**, **`python -m pytest backend/tests`**, etc.
+
+More options (one-shot default `CMD`, load scenario): **[infra/README.md](../infra/README.md)** (Test runner service).
 
 Shared assertions: **`packages/test_support`** (`golf_test_support`). GUI tests use **pytest-qt**; the image sets **`QT_QPA_PLATFORM=offscreen`**.

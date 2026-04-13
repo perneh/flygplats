@@ -44,6 +44,118 @@ async def http_delete(host: str, port: int, path: str, **kwargs: Any) -> Respons
     return await _client(host, port).delete(path, **kwargs)
 
 
+# --- REST route helpers (return Response; caller asserts status / body) ---
+#
+# Prefer these over repeating f"{PREFIX}/..." in tests. Low-level http_* remains for odd paths.
+
+
+async def fetch_player(host: str, port: int, player_id: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/players/{player_id}")
+
+
+async def fetch_player_performance(host: str, port: int, player_id: int, **params: Any) -> Response:
+    return await http_get(
+        host, port, f"{PREFIX}/players/{player_id}/performance", params=params or None
+    )
+
+
+async def fetch_courses(host: str, port: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/courses")
+
+
+async def fetch_course(host: str, port: int, course_id: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/courses/{course_id}")
+
+
+async def fetch_course_hole(host: str, port: int, course_id: int, hole_number: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/courses/{course_id}/holes/{hole_number}")
+
+
+async def patch_course(host: str, port: int, course_id: int, body: dict[str, Any]) -> Response:
+    return await http_patch(host, port, f"{PREFIX}/courses/{course_id}", json=body)
+
+
+async def delete_course(host: str, port: int, course_id: int) -> Response:
+    return await http_delete(host, port, f"{PREFIX}/courses/{course_id}")
+
+
+async def fetch_holes(host: str, port: int, *, course_id: int | None = None) -> Response:
+    params = {"course_id": course_id} if course_id is not None else None
+    return await http_get(host, port, f"{PREFIX}/holes", params=params)
+
+
+async def fetch_hole(host: str, port: int, hole_id: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/holes/{hole_id}")
+
+
+async def patch_hole(host: str, port: int, hole_id: int, body: dict[str, Any]) -> Response:
+    return await http_patch(host, port, f"{PREFIX}/holes/{hole_id}", json=body)
+
+
+async def delete_hole(host: str, port: int, hole_id: int) -> Response:
+    return await http_delete(host, port, f"{PREFIX}/holes/{hole_id}")
+
+
+async def fetch_rounds(host: str, port: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/rounds")
+
+
+async def fetch_round(host: str, port: int, round_id: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/rounds/{round_id}")
+
+
+async def fetch_round_shots(host: str, port: int, round_id: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/rounds/{round_id}/shots")
+
+
+async def patch_round(host: str, port: int, round_id: int, body: dict[str, Any]) -> Response:
+    return await http_patch(host, port, f"{PREFIX}/rounds/{round_id}", json=body)
+
+
+async def delete_round(host: str, port: int, round_id: int) -> Response:
+    return await http_delete(host, port, f"{PREFIX}/rounds/{round_id}")
+
+
+async def fetch_shot(host: str, port: int, shot_id: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/shots/{shot_id}")
+
+
+async def patch_shot(host: str, port: int, shot_id: int, body: dict[str, Any]) -> Response:
+    return await http_patch(host, port, f"{PREFIX}/shots/{shot_id}", json=body)
+
+
+async def delete_shot(host: str, port: int, shot_id: int) -> Response:
+    return await http_delete(host, port, f"{PREFIX}/shots/{shot_id}")
+
+
+async def post_shot(host: str, port: int, body: dict[str, Any]) -> Response:
+    return await http_post(host, port, f"{PREFIX}/shots", json=body)
+
+
+async def post_match(host: str, port: int, body: dict[str, Any]) -> Response:
+    return await http_post(host, port, f"{PREFIX}/matches", json=body)
+
+
+async def post_factory_default(host: str, port: int) -> Response:
+    return await http_post(host, port, f"{PREFIX}/dev/factory-default")
+
+
+async def post_golf_club(host: str, port: int, body: dict[str, Any]) -> Response:
+    return await http_post(host, port, f"{PREFIX}/golf-clubs", json=body)
+
+
+async def fetch_golf_clubs(host: str, port: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/golf-clubs")
+
+
+async def fetch_golf_club(host: str, port: int, club_id: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/golf-clubs/{club_id}")
+
+
+async def patch_golf_club(host: str, port: int, club_id: int, body: dict[str, Any]) -> Response:
+    return await http_patch(host, port, f"{PREFIX}/golf-clubs/{club_id}", json=body)
+
+
 # --- Health ---
 
 
@@ -131,6 +243,24 @@ async def get_course_statistics(host: str, port: int, course_id: int) -> dict[st
     """GET /courses/{id}/statistics — aggregated player and per-hole activity on the course."""
     client = _client(host, port)
     r = await client.get(f"{PREFIX}/courses/{course_id}/statistics")
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def get_course_hole_facts(host: str, port: int, course_id: int, hole_number: int) -> dict[str, Any]:
+    """GET /courses/{id}/holes/{n} — hole layout / par / coordinates for that hole on the course."""
+    client = _client(host, port)
+    r = await client.get(f"{PREFIX}/courses/{course_id}/holes/{hole_number}")
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def get_course_hole_statistics(
+    host: str, port: int, course_id: int, hole_number: int
+) -> dict[str, Any]:
+    """GET /courses/{id}/holes/{n}/statistics — shots and per-player counts on that hole."""
+    client = _client(host, port)
+    r = await client.get(f"{PREFIX}/courses/{course_id}/holes/{hole_number}/statistics")
     assert r.status_code == 200, r.text
     return r.json()
 

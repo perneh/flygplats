@@ -141,7 +141,7 @@ class MainWindow(QMainWindow):
             HoleView(
                 id=h["id"],
                 course_id=h["course_id"],
-                number=h["number"],
+                number=int(h["hole"] if "hole" in h else h["number"]),
                 par=h["par"],
                 tee_x=h["tee_x"],
                 tee_y=h["tee_y"],

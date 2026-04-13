@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Course, Hole, Player, Round, Shot
 from app.schemas.course import CourseCreate, CourseUpdate
 from app.schemas.course_statistics import CourseStatisticsRead, HoleActivityRow, PlayerCourseStatisticsRow
+from app.schemas.hole_statistics import HoleStatisticsRead, PlayerHoleStatisticsRow
 
 
 class CourseService:
@@ -118,6 +119,64 @@ class CourseService:
             total_rounds=total_rounds,
             players=players,
             holes=holes,
+        )
+
+    async def aggregate_hole_statistics(
+        self, session: AsyncSession, course: Course, hole: Hole
+    ) -> HoleStatisticsRead:
+        total_strokes = await session.scalar(
+            select(func.count(Shot.id)).where(Shot.hole_id == hole.id)
+        )
+        total_strokes = int(total_strokes or 0)
+
+        rounds_n = await session.scalar(
+            select(func.count(func.distinct(Shot.round_id))).where(Shot.hole_id == hole.id)
+        )
+        rounds_n = int(rounds_n or 0)
+
+        pr = await session.execute(
+            select(Round.player_id, func.count(Shot.id))
+            .select_from(Shot)
+            .join(Round, Shot.round_id == Round.id)
+            .where(Shot.hole_id == hole.id)
+            .group_by(Round.player_id)
+            .order_by(Round.player_id)
+        )
+        rows = pr.all()
+        if not rows:
+            return HoleStatisticsRead(
+                course_id=course.id,
+                course_name=course.name,
+                hole_id=hole.id,
+                hole_number=hole.number,
+                par=hole.par,
+                total_strokes_recorded=0,
+                rounds_with_shots_on_hole=0,
+                players=[],
+            )
+
+        pids = [row[0] for row in rows]
+        pl = await session.execute(select(Player).where(Player.id.in_(pids)))
+        names = {p.id: p.name for p in pl.scalars().all()}
+
+        players = [
+            PlayerHoleStatisticsRow(
+                player_id=pid,
+                player_name=names.get(pid, ""),
+                strokes_on_hole=int(cnt),
+            )
+            for pid, cnt in rows
+        ]
+
+        return HoleStatisticsRead(
+            course_id=course.id,
+            course_name=course.name,
+            hole_id=hole.id,
+            hole_number=hole.number,
+            par=hole.par,
+            total_strokes_recorded=total_strokes,
+            rounds_with_shots_on_hole=rounds_n,
+            players=players,
         )
 
 

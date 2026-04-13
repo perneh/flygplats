@@ -9,13 +9,12 @@ more multi-player matches.
 import pytest
 
 from tests.support.api_actions import (
-    PREFIX,
     add_course,
     add_hole_to_course,
     add_player,
+    fetch_player_performance,
     get_course_statistics,
-    http_get,
-    http_post,
+    post_match,
 )
 
 
@@ -61,24 +60,17 @@ async def test_single_match_smoke_then_player_filters(api_host, api_port, api_cl
     p1 = await add_player(api_host, api_port, "Alpha")
     p2 = await add_player(api_host, api_port, "Bravo")
 
-    r = await http_post(api_host, api_port, f"{PREFIX}/matches", json=_match_payload(cid, p1, p2))
+    r = await post_match(api_host, api_port, _match_payload(cid, p1, p2))
     assert r.status_code == 201, r.text
     # Hole 1: 1 + 2 shots; hole 2: 1 + 0 (p2 has an empty shot list on hole 2) → 4 rows
     assert r.json()["shots_created"] == 4
 
-    perf = (await http_get(api_host, api_port, f"{PREFIX}/players/{p1}/performance")).json()
+    perf = (await fetch_player_performance(api_host, api_port, p1)).json()
     assert perf["player_name"] == "Alpha"
     assert len(perf["rounds"]) == 1
     assert len(perf["rounds"][0]["holes"]) == 2
 
-    perf_h1 = (
-        await http_get(
-            api_host,
-            api_port,
-            f"{PREFIX}/players/{p2}/performance",
-            params=[("hole_number", "1")],
-        )
-    ).json()
+    perf_h1 = (await fetch_player_performance(api_host, api_port, p2, hole_number="1")).json()
     assert len(perf_h1["rounds"][0]["holes"]) == 1
     assert perf_h1["rounds"][0]["holes"][0]["stroke_count"] == 2
 
@@ -103,14 +95,9 @@ async def test_multi_match_increments_player_rounds_and_course_totals(api_host, 
     p1 = await add_player(api_host, api_port, "M1")
     p2 = await add_player(api_host, api_port, "M2")
 
-    r1 = await http_post(api_host, api_port, f"{PREFIX}/matches", json=_match_payload(cid, p1, p2))
+    r1 = await post_match(api_host, api_port, _match_payload(cid, p1, p2))
     assert r1.status_code == 201
-    r2 = await http_post(
-        api_host,
-        api_port,
-        f"{PREFIX}/matches",
-        json=_match_payload(cid, p1, p2, second_hole=False),
-    )
+    r2 = await post_match(api_host, api_port, _match_payload(cid, p1, p2, second_hole=False))
     assert r2.status_code == 201
     assert r2.json()["shots_created"] == 3
 
@@ -119,7 +106,7 @@ async def test_multi_match_increments_player_rounds_and_course_totals(api_host, 
         (p1, "M1", 1, 1),
         (p2, "M2", 2, 2),
     ):
-        perf = (await http_get(api_host, api_port, f"{PREFIX}/players/{pid}/performance")).json()
+        perf = (await fetch_player_performance(api_host, api_port, pid)).json()
         assert perf["player_name"] == name
         assert len(perf["rounds"]) == 2
         assert perf["rounds"][0]["holes"][0]["stroke_count"] == newer_match_hole1_strokes
@@ -146,11 +133,10 @@ async def test_course_statistics_only_includes_that_course(api_host, api_port, a
     await add_hole_to_course(api_host, api_port, c_focus, 1, par=5)
 
     p1 = await add_player(api_host, api_port, "Solo")
-    await http_post(
+    await post_match(
         api_host,
         api_port,
-        f"{PREFIX}/matches",
-        json={
+        {
             "course_id": c_focus,
             "player_ids": [p1],
             "holes": [

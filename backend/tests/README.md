@@ -42,7 +42,9 @@ Adding e.g. `test_02_…` ensures it runs **after** `test_01_…` and **before**
 
 **Docker `test-runner`:** the image does **not** ship `backend/app`; it sets **`PYTEST_API_BASE_URL`** (e.g. `http://backend:8000`) so pytest acts as a **plain HTTP client** against a running backend. See the root [README](../../README.md) and [infra/README.md](../../infra/README.md).
 
-Helpers in **`tests/support/api_actions.py`** take **`(api_host, api_port, ...)`** so calls read like a real server; the **`api_client`** fixture binds the client. Raw paths: `http_get` / `http_post` / `http_patch` / `http_delete`.
+Helpers in **`tests/support/api_actions.py`** take **`(api_host, api_port, ...)`** so calls read like a real server; the **`api_client`** fixture binds the client.
+
+**Route helpers** (e.g. `fetch_course`, `fetch_round`, `post_match`, `patch_golf_club`, `delete_hole`) wrap each REST path so tests avoid repeating `f"{PREFIX}/…"`. They return an **`httpx.Response`**; the test asserts **`status_code`** / **`json()`**. Use low-level **`http_get`** / **`http_post`** / **`http_patch`** / **`http_delete`** only for uncommon paths.
 
 FastAPI async testing guide: [FastAPI — Async Tests](https://fastapi.tiangolo.com/advanced/async-tests/).
 

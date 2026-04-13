@@ -19,5 +19,12 @@ class Course(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    holes: Mapped[list["Hole"]] = relationship(back_populates="course", order_by="Hole.number")
-    rounds: Mapped[list["Round"]] = relationship(back_populates="course")
+    holes: Mapped[list["Hole"]] = relationship(
+        back_populates="course",
+        cascade="all, delete-orphan",
+        order_by="Hole.number",
+    )
+    rounds: Mapped[list["Round"]] = relationship(
+        back_populates="course",
+        cascade="all, delete-orphan",
+    )
