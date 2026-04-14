@@ -277,11 +277,13 @@ The test image is **not** started by default. It is enabled with the Compose pro
 
 ### Run the default test command (one-shot)
 
-This builds (if needed) and runs the image `CMD` (pytest on backend + frontend tests), then exits:
+Runs the image `CMD` (pytest on backend + frontend tests), then exits:
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile tests run --rm test-runner
+docker compose -f infra/docker-compose.yml --profile tests run --build --rm test-runner
 ```
+
+`--build` rebuilds the `test-runner` image when the Dockerfile or context changed; omit it to reuse the cached image (faster).
 
 ### Load scenario (`test_07_load_scenario.py`) against the real backend
 
@@ -295,7 +297,7 @@ The load test only calls **factory-default** at the **start** (wipe), then creat
 2. From the repo root, run pytest with a base URL (Compose DNS name `backend` works from `test-runner`):
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile tests run --rm test-runner \
+docker compose -f infra/docker-compose.yml --profile tests run --build --rm test-runner \
   python -m pytest backend/tests/test_07_load_scenario.py -v --api-base-url=http://backend:8000
 ```
 
@@ -305,10 +307,21 @@ From the **host** (with backend published on port 8000): `--api-base-url=http://
 
 ### “Log in” to the test container (interactive shell)
 
-There is no SSH or separate login. You start a shell **in a new container** from the same image:
+There is no SSH or separate login. You start a shell **in a new container** from the same image.
+
+**Rebuild the image, then open bash** (from the repository root):
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile tests run --rm -it --entrypoint /bin/bash test-runner
+docker compose -f infra/docker-compose.yml --profile tests build test-runner
+docker compose -f infra/docker-compose.yml --profile tests run --build --rm -it --entrypoint /bin/bash test-runner
+```
+
+The first command rebuilds the `test-runner` image. The second starts an interactive shell; `--build` there rebuilds again if needed (you can omit it on the second line when you already ran `build` and nothing changed).
+
+**One-liner** (build + shell without a separate `build` step):
+
+```bash
+docker compose -f infra/docker-compose.yml --profile tests run --build --rm -it --entrypoint /bin/bash test-runner
 ```
 
 You will have a prompt with working directory `/app` (see `Dockerfile.test-runner`). Then run tests manually, for example:

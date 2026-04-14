@@ -12,6 +12,7 @@ Pytest discovers **`backend/tests`** and **`frontend/tests`** (see [`pyproject.t
 |--------|--------|
 | [Root README](../README.md) | Quick start, Docker, desktop app, pre-commit |
 | [Backend API tests](../backend/tests/README.md) | httpx fixtures, integration mode, `test_01`–`test_07`, pytest flags (`-x`, …) |
+| [Frontend tests](../frontend/tests/README.md) | pytest-qt offscreen canvas; **xdotool** + TCP API + real `golf_desktop` (optional `DISPLAY` / `xvfb-run`) |
 | [infra/README.md](../infra/README.md) | Compose, GUI/X11, **test-runner** image |
 
 ---

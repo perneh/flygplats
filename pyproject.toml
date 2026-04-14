@@ -12,7 +12,10 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["backend/tests", "frontend/tests"]
-pythonpath = ["packages/test_support/src", "backend", "frontend"]
+pythonpath = ["packages/test_support/src", "backend", "frontend", "frontend/tests"]
+markers = [
+    "xdotool: GUI tests that require X11, xdotool, DISPLAY, and a local TCP API (see frontend/tests/README.md).",
+]
 # Default output: one line per test + short tracebacks + summary of skips/xfail + slowest tests
 addopts = "-v --tb=short -ra --color=yes --durations=15"
 filterwarnings = [

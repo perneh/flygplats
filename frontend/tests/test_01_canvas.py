@@ -1,9 +1,11 @@
 """GUI smoke tests (pytest-qt, offscreen)."""
 
-from golf_test_support import assert_ui_element_exists
-from golf_desktop.ui.course_canvas import CourseCanvas
-from golf_desktop.domain.models import HoleView, ShotPoint
 from datetime import datetime, timezone
+
+from golf_test_support import assert_ui_element_exists
+
+from golf_desktop.domain.models import HoleView, ShotPoint
+from golf_desktop.ui.course_canvas import CourseCanvas
 
 
 def test_course_canvas_renders_shots(qtbot):

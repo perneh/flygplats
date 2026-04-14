@@ -225,6 +225,14 @@ class GolfApiClient:
             params["hole_id"] = hole_id
         return await self._get_json(f"/api/v1/rounds/{round_id}/shots", params=params or None)
 
+    async def create_round(self, *, player_id: int, course_id: int) -> dict[str, Any]:
+        return await self._post_json(
+            "/api/v1/rounds", json={"player_id": player_id, "course_id": course_id}
+        )
+
+    async def delete_shot(self, shot_id: int) -> None:
+        await self._delete(f"/api/v1/shots/{shot_id}")
+
     async def get_holes(self, course_id: int | None = None) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}
         if course_id is not None:
@@ -250,6 +258,29 @@ class GolfApiClient:
             "distance": distance,
         }
         return await self._post_json("/api/v1/shots", json=body)
+
+    async def get_tournament_detail(self, tournament_id: int) -> dict[str, Any]:
+        return await self._post_json(
+            "/api/v1/tournaments/detail", json={"tournament_id": tournament_id}
+        )
+
+    async def post_scorecard_hole(
+        self,
+        *,
+        scorecard_id: int,
+        hole_number: int,
+        strokes: int,
+        player_id: int,
+    ) -> dict[str, Any]:
+        return await self._post_json(
+            "/api/v1/scorecards/hole",
+            json={
+                "scorecard_id": scorecard_id,
+                "hole_number": hole_number,
+                "strokes": strokes,
+                "player_id": player_id,
+            },
+        )
 
     async def get_tournaments(self) -> list[dict[str, Any]]:
         return await self._get_json("/api/v1/tournaments")

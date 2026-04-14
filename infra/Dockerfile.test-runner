@@ -12,6 +12,8 @@ ENV PIP_NO_CACHE_DIR=1 \
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    xvfb \
+    xdotool \
     libgl1 \
     libegl1 \
     libglib2.0-0 \
@@ -42,7 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && ldconfig
 
-COPY requirements.test-runner.txt pyproject.toml ./
+COPY requirements.test-runner.txt pyproject.toml conftest.py ./
 COPY packages/test_support ./packages/test_support
 
 # Backend: only tests (+ small JSON fixtures). API tests target ``http://backend:8000`` via

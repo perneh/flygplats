@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from collections.abc import Callable
 from typing import Any
 
 log = logging.getLogger(__name__)
@@ -31,6 +32,10 @@ from golf_desktop.domain.models import HoleView, RoundSummary, ShotPoint
 from golf_desktop.log_setup import LOG_DIR, flush_log_handlers, get_latest_log_path
 from golf_desktop.ui.api_json_dialog import ApiJsonDialog, LogFileViewerDialog
 from golf_desktop.ui.course_canvas import CourseCanvas
+from golf_desktop.ui.personal_scorecard_dialog import (
+    PersonalScorecardRequestDialog,
+    PersonalScorecardSessionDialog,
+)
 
 
 class TournamentCreateDialog(QDialog):
@@ -349,6 +354,10 @@ class MainWindow(QMainWindow):
                 act_manage_player.setObjectName("menuPlayersManage")
                 act_manage_player.triggered.connect(self._player_manage)
                 menu.addAction(act_manage_player)
+                act_personal_scorecard = QAction("Personal scorecard…", self)
+                act_personal_scorecard.setObjectName("menuPlayersPersonalScorecard")
+                act_personal_scorecard.triggered.connect(self._player_personal_scorecard)
+                menu.addAction(act_personal_scorecard)
 
         tournaments_menu = bar.addMenu("&Tournaments")
         act_t_create = QAction("Create…", self)
@@ -404,6 +413,24 @@ class MainWindow(QMainWindow):
     def _on_log_viewer_destroyed(self) -> None:
         self._log_viewer = None
 
+    def _defer_to_event_loop(self, fn: Callable[[], None]) -> None:
+        """
+        Run *fn* on the next event-loop iteration.
+
+        Qt signals and timers can fire while asyncio is still finishing another task; calling
+        ``ensure_future`` synchronously from those callbacks can raise
+        ``RuntimeError: Cannot enter into task ... while another task ... is being executed``
+        with qasync. Deferring avoids that re-entrancy.
+
+        Also use this for **modal dialogs opened from async menu handlers** after awaits: if an
+        inner ``exec()`` runs while the menu's asyncio task is still the current task, nested
+        ``_run_async`` calls from that dialog will conflict. Schedule ``dialog.exec`` here so the
+        handler coroutine can finish first (see personal scorecard session dialog).
+        """
+        import asyncio
+
+        asyncio.get_event_loop().call_soon(fn)
+
     def _run_async(self, coro) -> None:
         import asyncio
 
@@ -417,7 +444,10 @@ class MainWindow(QMainWindow):
                 log.exception("Async UI task failed")
                 QMessageBox.warning(self, "API error", str(e))
 
-        asyncio.ensure_future(_wrap())
+        def _kick() -> None:
+            asyncio.ensure_future(_wrap())
+
+        self._defer_to_event_loop(_kick)
 
     def _browse_players(self) -> None:
         log.info("Menu: Players → list from API")
@@ -495,6 +525,113 @@ class MainWindow(QMainWindow):
                 return
             await self._api.delete_player(player_id)
             QMessageBox.information(self, "Players", f"Player #{player_id} deleted.")
+
+    def _player_personal_scorecard(self) -> None:
+        log.info("Menu: Players → Personal scorecard")
+        self._run_async(self._player_personal_scorecard_async())
+
+    async def _player_personal_scorecard_async(self) -> None:
+        players = await self._api.get_players()
+        if not players:
+            QMessageBox.information(self, "Personal scorecard", "No players available yet.")
+            return
+        started_tournaments = await self._api.get_tournaments_started()
+        courses = await self._api.get_courses()
+        if not courses:
+            QMessageBox.information(self, "Personal scorecard", "No courses available yet.")
+            return
+
+        dlg = PersonalScorecardRequestDialog(players, started_tournaments, courses, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            log.debug("Personal scorecard dialog cancelled")
+            return
+
+        req = dlg.values()
+        player_id = int(req["player_id"])
+        mode = str(req["mode"])
+        player_name = next((str(p.get("name", "")) for p in players if int(p["id"]) == player_id), "")
+
+        if mode == "tournament":
+            tid_raw = req["tournament_id"]
+            if tid_raw is None:
+                QMessageBox.warning(
+                    self,
+                    "Personal scorecard",
+                    "No started tournaments available for personal tournament scorecard.",
+                )
+                return
+            tournament_id = int(tid_raw)
+            cards = await self._api.get_tournament_scorecards(tournament_id)
+            card = next((c for c in cards if int(c.get("player_id", -1)) == player_id), None)
+            if card is None:
+                QMessageBox.information(
+                    self,
+                    "Personal scorecard",
+                    f"{player_name or f'Player #{player_id}'} is not in this started tournament.",
+                )
+                return
+            t_name = next(
+                (str(t.get("name", "")) for t in started_tournaments if int(t["id"]) == tournament_id),
+                "",
+            )
+            detail = await self._api.get_tournament_detail(tournament_id)
+            course_id = int(detail["course_id"])
+            holes = await self._api.get_holes(course_id=course_id)
+            holes_sorted = sorted(
+                holes,
+                key=lambda h: int(h.get("hole") if h.get("hole") is not None else h.get("number", 0)),
+            )
+            rnd = await self._api.create_round(player_id=player_id, course_id=course_id)
+            round_id = int(rnd["id"])
+            existing = await self._api.list_shots(round_id=round_id)
+            session_dlg = PersonalScorecardSessionDialog(
+                self._api,
+                self._run_async,
+                mode="tournament",
+                player_id=player_id,
+                player_name=player_name,
+                holes_raw=holes_sorted[:18],
+                round_id=round_id,
+                initial_shots=existing,
+                tournament_name=t_name,
+                scorecard=card,
+                parent=self,
+            )
+            # Defer exec so this asyncio task finishes first; otherwise nested _run_async from the
+            # dialog races the parent task and triggers "Cannot enter into task ..." under qasync.
+            self._defer_to_event_loop(session_dlg.exec)
+            return
+
+        course_id_raw = req["course_id"]
+        if course_id_raw is None:
+            QMessageBox.warning(self, "Personal scorecard", "Select a course for training scorecard.")
+            return
+        course_id = int(course_id_raw)
+        hole_count = int(req["hole_count"])
+        holes = await self._api.get_holes(course_id=course_id)
+        holes_sorted = sorted(
+            holes,
+            key=lambda h: int(h.get("hole") if h.get("hole") is not None else h.get("number", 0)),
+        )
+        selected = holes_sorted[:hole_count]
+        if not selected:
+            QMessageBox.warning(self, "Personal scorecard", "No holes found for this course.")
+            return
+        rnd = await self._api.create_round(player_id=player_id, course_id=course_id)
+        round_id = int(rnd["id"])
+        existing = await self._api.list_shots(round_id=round_id)
+        session_dlg = PersonalScorecardSessionDialog(
+            self._api,
+            self._run_async,
+            mode="training",
+            player_id=player_id,
+            player_name=player_name,
+            holes_raw=selected,
+            round_id=round_id,
+            initial_shots=existing,
+            parent=self,
+        )
+        self._defer_to_event_loop(session_dlg.exec)
 
     def _browse_courses(self) -> None:
         log.info("Menu: Courses → list from API")
@@ -730,7 +867,10 @@ class MainWindow(QMainWindow):
     def _load_data(self) -> None:
         import asyncio
 
-        asyncio.ensure_future(self._load_data_async())
+        def _kick() -> None:
+            asyncio.ensure_future(self._load_data_async())
+
+        self._defer_to_event_loop(_kick)
 
     async def _load_data_async(self) -> None:
         log.info("Loading rounds and canvas data")
@@ -781,14 +921,25 @@ class MainWindow(QMainWindow):
         import asyncio
 
         log.debug("Round combo changed → reload holes and shots")
-        asyncio.ensure_future(self._load_holes_for_current_round())
-        asyncio.ensure_future(self._load_shots_for_selection())
+
+        async def _chain() -> None:
+            await self._load_holes_for_current_round()
+            await self._load_shots_for_selection()
+
+        def _kick() -> None:
+            asyncio.ensure_future(_chain())
+
+        self._defer_to_event_loop(_kick)
 
     def _on_hole_changed(self) -> None:
         import asyncio
 
         log.debug("Hole combo changed → reload shots")
-        asyncio.ensure_future(self._load_shots_for_selection())
+
+        def _kick() -> None:
+            asyncio.ensure_future(self._load_shots_for_selection())
+
+        self._defer_to_event_loop(_kick)
 
     async def _load_holes_for_current_round(self) -> None:
         rid = self._current_round_id()
