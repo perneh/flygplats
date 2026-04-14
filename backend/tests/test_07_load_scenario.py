@@ -45,6 +45,7 @@ from tests.support.api_actions import (
     record_shot_measurement,
 )
 from tests.support.bundled_init_counts import GOLF_COURSES as _BUNDLED_COURSES
+from tests.support.bundled_init_counts import GOLF_PLAYERS as _BUNDLED_PLAYERS
 
 pytestmark = pytest.mark.usefixtures("require_external_api_base_url")
 
@@ -61,7 +62,7 @@ async def test_ten_players_each_full_round_on_ten_courses(api_host, api_port):
     No cleanup at the end — data remains in the API's database (requires external API; see module docstring).
     """
     await factory_default(api_host, api_port)
-    assert (await list_all_players(api_host, api_port)) == []
+    assert len(await list_all_players(api_host, api_port)) == _BUNDLED_PLAYERS
     assert len(await list_all_courses(api_host, api_port)) == _BUNDLED_COURSES
     assert (await list_all_shots(api_host, api_port)) == []
 
@@ -112,7 +113,7 @@ async def test_ten_players_each_full_round_on_ten_courses(api_host, api_port):
     rounds = await list_all_rounds(api_host, api_port)
     shots = await list_all_shots(api_host, api_port)
 
-    assert len(players) == NUM_PLAYERS
+    assert len(players) == NUM_PLAYERS + _BUNDLED_PLAYERS
     assert len(courses) == _BUNDLED_COURSES + NUM_PLAYERS
     assert len(rounds) == NUM_PLAYERS
     assert len(shots) == NUM_PLAYERS * HOLES_PER_COURSE

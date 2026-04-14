@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String, Text, func
@@ -27,4 +29,8 @@ class Course(Base):
     rounds: Mapped[list["Round"]] = relationship(
         back_populates="course",
         cascade="all, delete-orphan",
+    )
+    tournaments: Mapped[list["Tournament"]] = relationship(
+        "Tournament",
+        back_populates="course",
     )

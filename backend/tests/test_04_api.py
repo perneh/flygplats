@@ -14,6 +14,8 @@ from datetime import date, datetime, timezone
 import pytest
 from golf_test_support import assert_shot_equals, assert_status_ok
 
+from tests.support.bundled_init_counts import GOLF_PLAYERS as _BUNDLED_PLAYERS
+
 from tests.support.api_actions import (
     add_course,
     add_hole_to_course,
@@ -35,6 +37,10 @@ from tests.support.api_actions import (
     fetch_player_performance,
     fetch_round,
     fetch_round_shots,
+    fetch_scorecard,
+    fetch_tournament,
+    fetch_tournaments,
+    fetch_tournament_scorecards,
     fetch_rounds,
     fetch_shot,
     filter_rounds_occuring_on_calendar_day,
@@ -53,11 +59,15 @@ from tests.support.api_actions import (
     patch_golf_club,
     patch_hole,
     patch_round,
+    post_scorecard_hole,
     patch_shot,
     post_factory_default,
     post_golf_club,
     post_match,
     post_shot,
+    post_tournament,
+    post_tournament_participant,
+    post_tournament_start,
     record_shot_measurement,
     update_player_name,
 )
@@ -420,12 +430,62 @@ async def test_matches_post(api_host, api_port):
 
 
 @pytest.mark.asyncio
+async def test_tournaments_and_scorecards_route_smoke(api_host, api_port):
+    """GET list, POST tournaments, participants, start, detail, scorecards; POST scorecard detail/hole."""
+    r_empty = await fetch_tournaments(api_host, api_port)
+    assert r_empty.status_code == 200
+    assert r_empty.json() == []
+
+    cid = await add_course(api_host, api_port, "Tourney surface")
+    pid = await add_player(api_host, api_port, "T P1")
+    r_create = await post_tournament(
+        api_host,
+        api_port,
+        {"name": "Surface Cup", "play_date": "2026-05-01", "course_id": cid},
+    )
+    assert r_create.status_code == 201
+    tid = r_create.json()["id"]
+    r_list_after = await fetch_tournaments(api_host, api_port)
+    assert r_list_after.status_code == 200
+    assert len(r_list_after.json()) == 1
+    assert r_list_after.json()[0]["id"] == tid
+    r_part = await post_tournament_participant(
+        api_host,
+        api_port,
+        {"tournament_id": tid, "player_id": pid, "handicap": 15.0},
+    )
+    assert r_part.status_code == 201
+    r_start = await post_tournament_start(api_host, api_port, tid)
+    assert r_start.status_code == 200
+    r_one = await fetch_tournament(api_host, api_port, tid)
+    assert r_one.status_code == 200
+    assert r_one.json()["status"] == "started"
+    r_list = await fetch_tournament_scorecards(api_host, api_port, tid)
+    assert r_list.status_code == 200
+    sc_id = r_list.json()[0]["id"]
+    r_get_sc = await fetch_scorecard(api_host, api_port, sc_id)
+    assert r_get_sc.status_code == 200
+    r_patch = await post_scorecard_hole(
+        api_host,
+        api_port,
+        {
+            "scorecard_id": sc_id,
+            "hole_number": 2,
+            "strokes": 5,
+            "player_id": pid,
+        },
+    )
+    assert r_patch.status_code == 200
+    assert r_patch.json()["holes"][1]["strokes"] == 5
+
+
+@pytest.mark.asyncio
 async def test_dev_factory_default(api_host, api_port):
-    """POST /dev/factory-default — wipes domain data then re-applies bundled init courses/clubs."""
+    """POST /dev/factory-default — wipes domain data then re-applies bundled init JSON."""
     await add_player(api_host, api_port, "To Wipe")
     assert len(await list_all_players(api_host, api_port)) >= 1
     r = await post_factory_default(api_host, api_port)
     assert r.status_code == 200
     assert r.json().get("status") == "ok"
-    assert await list_all_players(api_host, api_port) == []
+    assert len(await list_all_players(api_host, api_port)) == _BUNDLED_PLAYERS
     assert len(await list_all_courses(api_host, api_port)) >= 1

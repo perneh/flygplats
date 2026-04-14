@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     init_data_json_path: str = ""
     #: Override path to ``golf_clubs.json`` for ``seed_init_data`` (default: ``<backend>/init_data/golf_clubs.json``).
     init_data_golf_clubs_path: str = ""
+    #: Override path to ``golf_players.json`` for ``seed_init_data`` (default: ``<backend>/init_data/golf_players.json``).
+    init_data_golf_players_path: str = ""
 
 
 settings = Settings()

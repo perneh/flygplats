@@ -4,13 +4,43 @@ All paths below assume the **repository root** as the current working directory.
 
 **Compose project name:** `golf-infra` (set in `infra/docker-compose.yml`). Containers and networks are prefixed `golf-infra-…` instead of the old implicit **`infra-…`** (Compose used to derive the name from the `infra/` directory). If you had an existing Postgres volume from the old name, either migrate data or temporarily set `COMPOSE_PROJECT_NAME=infra` in `.env` until you move the data.
 
-### Build fails: `registry-1.docker.io` / `docker/dockerfile` / “no route to host”
+### Build fails: `registry-1.docker.io` / “no route to host” / metadata for `python:…`
 
-Docker must reach **Docker Hub** to pull base images (`python`, `postgres`, …). Errors mentioning **`dial tcp … :443: connect: no route to host`** (often with an **IPv6** address) usually mean the path to `registry-1.docker.io` is blocked or mis-routed—VPN, firewall, corporate network, or broken IPv6 on the LAN.
+Docker must reach **Docker Hub** to pull base images (`python`, `postgres`, …).
+
+**Symptom:** `failed to resolve source metadata for docker.io/library/python:…` and/or  
+`dial tcp [2600:…]:443: connect: no route to host` — the address in brackets is **IPv6**. Docker tried the Hub over IPv6 and your machine or network has **no working route** to that address (common on some Wi‑Fi / VPN / Docker Desktop setups).
+
+**Quick checks**
+
+1. **Can the host reach Hub at all?**  
+   `docker pull hello-world`  
+   If this fails too, fix network before rebuilding the stack.
+
+2. **Prefer IPv4 for Docker (often fixes IPv6-only failures)**  
+   - **Docker Desktop (macOS / Windows):** **Settings → Docker Engine** and merge JSON so IPv6 is off, for example:
+     ```json
+     {
+       "ipv6": false
+     }
+     ```
+     Apply & restart Docker, then retry `docker pull python:3.12-slim-bookworm`.
+   - Or try another network (e.g. phone hotspot) to see if the issue is ISP/router-specific.
+
+3. **VPN / firewall / corporate proxy**  
+   Turn VPN off or on; ensure Docker Desktop **Settings → Resources → Proxies** matches how you reach the internet. The log line *“Docker Desktop has no HTTPS proxy”* means no proxy is configured—if your network **requires** one, set it there.
+
+4. **Pre-pull base images** (same tags as `infra/Dockerfile.backend`):
+   ```bash
+   docker pull public.ecr.aws/docker/library/python:3.12-slim-bookworm
+   docker compose -f infra/docker-compose.yml build backend
+   ```
+
+5. **Python base via AWS Public ECR (default in this repo)**  
+   `infra/Dockerfile.backend`, `Dockerfile.frontend`, and `Dockerfile.test-runner` use  
+   `FROM public.ecr.aws/docker/library/python:3.12-slim-bookworm` — the **Docker Official Image** mirrored on **Amazon ECR Public** (same content as `docker.io/library/python:…`). Many networks reach `public.ecr.aws` over IPv4 when `registry-1.docker.io` fails on IPv6. The **`db`** service still pulls `postgres:16-alpine` from Docker Hub; if that step fails too, fix IPv6/proxy or pre-pull Postgres.
 
 This repo’s Dockerfiles **do not** use `# syntax=docker/dockerfile:1`, so BuildKit does **not** need an extra upfront pull of the Dockerfile frontend image (one fewer Hub round-trip).
-
-If pulls still fail, try another network, turn the VPN off or on, or in **Docker Desktop** (macOS) check **Settings → Resources → Network** / experimental options; some users fix Hub access by preferring IPv4 or adjusting proxy settings. Confirm with: `docker pull hello-world`.
 
 ## Start the stack (database, API, desktop GUI)
 

@@ -136,6 +136,75 @@ async def post_match(host: str, port: int, body: dict[str, Any]) -> Response:
     return await http_post(host, port, f"{PREFIX}/matches", json=body)
 
 
+async def fetch_tournaments(host: str, port: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/tournaments")
+
+
+async def fetch_tournament_drafts(host: str, port: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/tournaments/drafts")
+
+
+async def fetch_tournament_started(host: str, port: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/tournaments/started")
+
+
+async def fetch_tournament_non_draft(host: str, port: int) -> Response:
+    return await http_get(host, port, f"{PREFIX}/tournaments/non-draft")
+
+
+async def post_tournament_stop(host: str, port: int, tournament_id: int) -> Response:
+    return await http_post(host, port, f"{PREFIX}/tournaments/stop", json={"tournament_id": tournament_id})
+
+
+async def fetch_tournament_leaderboard(host: str, port: int, tournament_id: int) -> Response:
+    return await http_post(
+        host, port, f"{PREFIX}/tournaments/leaderboard", json={"tournament_id": tournament_id}
+    )
+
+
+async def fetch_tournament_player_shot_detail(
+    host: str, port: int, tournament_id: int, player_id: int
+) -> Response:
+    return await http_post(
+        host,
+        port,
+        f"{PREFIX}/tournaments/shot-detail",
+        json={"tournament_id": tournament_id, "player_id": player_id},
+    )
+
+
+async def post_tournament(host: str, port: int, body: dict[str, Any]) -> Response:
+    return await http_post(host, port, f"{PREFIX}/tournaments", json=body)
+
+
+async def post_tournament_participant(host: str, port: int, body: dict[str, Any]) -> Response:
+    """Body must include ``tournament_id``, ``player_id``, and ``handicap``."""
+    return await http_post(host, port, f"{PREFIX}/tournaments/participants", json=body)
+
+
+async def post_tournament_start(host: str, port: int, tournament_id: int) -> Response:
+    return await http_post(host, port, f"{PREFIX}/tournaments/start", json={"tournament_id": tournament_id})
+
+
+async def fetch_tournament(host: str, port: int, tournament_id: int) -> Response:
+    return await http_post(host, port, f"{PREFIX}/tournaments/detail", json={"tournament_id": tournament_id})
+
+
+async def fetch_tournament_scorecards(host: str, port: int, tournament_id: int) -> Response:
+    return await http_post(
+        host, port, f"{PREFIX}/tournaments/scorecards", json={"tournament_id": tournament_id}
+    )
+
+
+async def fetch_scorecard(host: str, port: int, scorecard_id: int) -> Response:
+    return await http_post(host, port, f"{PREFIX}/scorecards/detail", json={"scorecard_id": scorecard_id})
+
+
+async def post_scorecard_hole(host: str, port: int, body: dict[str, Any]) -> Response:
+    """Body: ``scorecard_id``, ``hole_number``, ``strokes``, ``player_id``."""
+    return await http_post(host, port, f"{PREFIX}/scorecards/hole", json=body)
+
+
 async def post_factory_default(host: str, port: int) -> Response:
     return await http_post(host, port, f"{PREFIX}/dev/factory-default")
 

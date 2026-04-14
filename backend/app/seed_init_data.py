@@ -1,10 +1,16 @@
 """
-Load bundled golf course definitions into an empty database.
+Load bundled golf definitions into an empty database.
 
 Runs after migrations in Docker (see ``infra/docker-entrypoint-backend.sh``). Idempotent:
-if ``courses`` already has rows, the seed is skipped so existing deployments are not duplicated.
+if a table already has rows, that seed step is skipped so existing deployments are not duplicated.
 
-JSON layout: ``backend/init_data/golf_courses_25.json`` — matches ``CourseRead`` / ``HoleRead`` (``id``, ``country``, ``holes[].hole``, ``tee``/``green`` lat/lng, ``length_m``, ``par``).
+JSON sources under ``backend/init_data/``:
+
+- ``golf_courses_25.json`` — courses + holes (``CourseRead`` / ``HoleRead`` shape).
+- ``golf_clubs.json`` — golf clubs catalog.
+- ``golf_players.json`` — player profiles (top-level JSON array of objects with
+  ``first_name``, ``last_name``, ``email``, ``handicap``, ``birthdate``, ``country``, ``phone``, ``gender``,
+  ``club``, ``ranking``).
 """
 
 from __future__ import annotations
@@ -12,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -21,12 +28,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db.session import async_session_maker
 from app.geo.canvas_project import bounds_from_latlng_pairs, project_latlng_to_canvas
-from app.models import Course, GolfClub, Hole
+from app.models import Course, GolfClub, Hole, Player
 
 logger = logging.getLogger("app.seed_init_data")
 
 _DEFAULT_REL = Path("init_data") / "golf_courses_25.json"
 _DEFAULT_GOLF_CLUBS = Path("init_data") / "golf_clubs.json"
+_DEFAULT_GOLF_PLAYERS = Path("init_data") / "golf_players.json"
 
 
 def _json_path() -> Path:
@@ -43,6 +51,24 @@ def _golf_clubs_json_path() -> Path:
         return Path(env)
     base = Path(__file__).resolve().parent.parent
     return base / _DEFAULT_GOLF_CLUBS
+
+
+def _golf_players_json_path() -> Path:
+    env = (settings.init_data_golf_players_path or "").strip()
+    if env:
+        return Path(env)
+    base = Path(__file__).resolve().parent.parent
+    return base / _DEFAULT_GOLF_PLAYERS
+
+
+def _age_from_birthdate(iso: str) -> int | None:
+    try:
+        bd = date.fromisoformat(iso.strip()[:10])
+    except (ValueError, AttributeError):
+        return None
+    today = date.today()
+    age = today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
+    return max(1, min(120, age))
 
 
 def _hole_geo_pairs(hole: dict[str, Any]) -> list[tuple[float, float]]:
@@ -187,6 +213,71 @@ async def seed_golf_clubs_if_empty_session(session: AsyncSession) -> bool:
     return True
 
 
+async def seed_players_if_empty_session(session: AsyncSession) -> bool:
+    """
+    Insert players from JSON when ``players`` is empty.
+
+    Caller must ``commit`` the session when this returns True. Used by CLI seed and
+    ``POST /dev/factory-default`` after a wipe.
+    """
+    path = _golf_players_json_path()
+    if not path.is_file():
+        logger.warning("Players init data missing at %s — skipping seed", path)
+        return False
+
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(raw, list):
+        players_data = raw
+    elif isinstance(raw, dict) and isinstance(raw.get("golf_players"), list):
+        players_data = raw["golf_players"]
+    else:
+        logger.error("Invalid JSON: expected a top-level array or an object with golf_players array")
+        return False
+
+    r = await session.execute(select(func.count()).select_from(Player))
+    existing = r.scalar_one()
+    if existing and existing > 0:
+        logger.info("Database already has %s player(s); skipping init seed", existing)
+        return False
+
+    for item in players_data:
+        fn = str(item.get("first_name") or "").strip()
+        ln = str(item.get("last_name") or "").strip()
+        name = f"{fn} {ln}".strip() or "Unknown"
+        hcp_raw = item.get("handicap")
+        handicap = float(hcp_raw) if hcp_raw is not None else None
+        bdate = item.get("birthdate")
+        age = _age_from_birthdate(str(bdate)) if bdate else None
+        gender = str(item.get("gender") or "").strip() or None
+        email = str(item.get("email") or "").strip() or None
+        phone = str(item.get("phone") or "").strip() or None
+        country = str(item.get("country") or "").strip() or None
+        club = str(item.get("club") or "").strip() or None
+        rank_raw = item.get("ranking")
+        try:
+            rank = int(rank_raw) if rank_raw is not None else None
+        except (TypeError, ValueError):
+            rank = None
+
+        session.add(
+            Player(
+                name=name,
+                handicap=handicap,
+                age=age,
+                gender=gender,
+                email=email,
+                phone=phone,
+                country=country,
+                club=club,
+                rank=rank,
+                sponsor=None,
+            )
+        )
+
+    logger.info("Seeded %s players from %s", len(players_data), path)
+    return True
+
+
 async def seed_init_golf_clubs_if_empty() -> bool:
     """CLI / Docker: open a session from the process engine and commit if seed ran."""
     async with async_session_maker() as session:
@@ -196,10 +287,20 @@ async def seed_init_golf_clubs_if_empty() -> bool:
         return ran
 
 
+async def seed_init_players_if_empty() -> bool:
+    """CLI / Docker: own session and commit if seed ran."""
+    async with async_session_maker() as session:
+        ran = await seed_players_if_empty_session(session)
+        if ran:
+            await session.commit()
+        return ran
+
+
 async def _async_main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     await seed_init_courses_if_empty()
     await seed_init_golf_clubs_if_empty()
+    await seed_init_players_if_empty()
 
 
 def main() -> None:

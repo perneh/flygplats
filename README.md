@@ -10,6 +10,42 @@ FastAPI backend, PySide6 desktop client, shared test utilities, and **Docker Com
 | **[tests/README.md](tests/README.md)** | Running pytest for the repo, `-x` / `--maxfail`, links to pytest docs |
 | **[backend/tests/README.md](backend/tests/README.md)** | API test style, `test_01`–`test_07` collection order, integration mode |
 | **[infra/README.md](infra/README.md)** | Docker Compose, GUI/X11, test-runner, Linux overrides |
+| **[backend/docs/tournaments_and_statistics.md](backend/docs/tournaments_and_statistics.md)** | Tournaments vs rounds/shots; performance API vs leaderboard |
+
+### Tournaments API (gross scoring)
+
+List tournaments with **`GET /api/v1/tournaments`** (newest `play_date` first, then highest `id`). **Filter lists (no id in path):** **`GET /api/v1/tournaments/drafts`** (not started), **`GET /api/v1/tournaments/started`** (in progress), **`GET /api/v1/tournaments/non-draft`** (started or **finished** — for scorecards/results). Create with **`POST /api/v1/tournaments`**, add **`POST /api/v1/tournaments/participants`** with **`tournament_id`**, `player_id`, and `handicap` (max **75** players), then **`POST /api/v1/tournaments/start`** with **`{"tournament_id": <id>}`** to build **flights** (≤4 players, ordered by **ascending handicap**) and **scorecards** with holes **1–18**. Mark complete with **`POST /api/v1/tournaments/stop`** and **`{"tournament_id": <id>}`** → status **`finished`** (stroke updates on **`POST /api/v1/scorecards/hole`** are then rejected). Record strokes while in progress with **`POST /api/v1/scorecards/hole`** and body `{"scorecard_id", "hole_number", "strokes", "player_id"}`. **Leaderboard**: **`POST /api/v1/tournaments/leaderboard`** with **`{"tournament_id": <id>}`**. **Per-shot distances** (from tracked rounds): **`POST /api/v1/tournaments/shot-detail`** with **`tournament_id`** and **`player_id`** — see **[backend/docs/tournaments_and_statistics.md](backend/docs/tournaments_and_statistics.md)** for how this relates to **`GET /players/{id}/performance`**. Read one tournament with **`POST /api/v1/tournaments/detail`**, list cards with **`POST /api/v1/tournaments/scorecards`**, or fetch a card with **`POST /api/v1/scorecards/detail`** — responses include **`out_total`** (holes 1–9), **`in_total`** (10–18), and **`gross_total`**. See **`backend/tests/test_08_tournaments.py`** for a full flow.
+
+**Example (after `alembic upgrade head` and a running API):**
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/api/v1/tournaments \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Club champs","play_date":"2026-08-15","course_id":1}'
+# → 201 {"id":1,"name":"Club champs",...,"status":"draft"}
+
+curl -sS -X POST http://127.0.0.1:8000/api/v1/tournaments/participants \
+  -H 'Content-Type: application/json' \
+  -d '{"tournament_id":1,"player_id":1,"handicap":12.4}'
+
+curl -sS -X POST http://127.0.0.1:8000/api/v1/tournaments/start \
+  -H 'Content-Type: application/json' \
+  -d '{"tournament_id":1}'
+# → flights + scorecards; status "started"
+
+curl -sS -X POST http://127.0.0.1:8000/api/v1/tournaments/stop \
+  -H 'Content-Type: application/json' \
+  -d '{"tournament_id":1}'
+# → status "finished"
+
+curl -sS -X POST http://127.0.0.1:8000/api/v1/tournaments/scorecards \
+  -H 'Content-Type: application/json' \
+  -d '{"tournament_id":1}'
+
+curl -sS -X POST http://127.0.0.1:8000/api/v1/scorecards/hole \
+  -H 'Content-Type: application/json' \
+  -d '{"scorecard_id":1,"hole_number":1,"strokes":4,"player_id":1}'
+```
 
 ---
 
@@ -74,10 +110,11 @@ Use this **only when you cannot run the GUI in Docker** (for example display or 
    source .venv/bin/activate   # Windows: .venv\Scripts\activate
    pip install -r requirements-dev.txt
    export API_BASE_URL=http://127.0.0.1:8000
+   export LOG_LEVEL=INFO
    PYTHONPATH=frontend python3 -m golf_desktop
    ```
 
-`requirements-dev.txt` includes backend, frontend, and test tooling so you can run pytest and tools from the same venv.
+   Optional: `LOG_LEVEL=DEBUG` adds more detail (HTTP response codes, canvas updates). The GUI **View → Show log file…** opens a **non-modal** window (you can keep using the app) that **refreshes every second** from the rotating file under `~/.cache/golf_desktop/`. `requirements-dev.txt` includes backend, frontend, and test tooling so you can run pytest and tools from the same venv.
 
 **Pytest on the host** against the Dockerized API:
 
@@ -110,6 +147,7 @@ python -m pytest backend/tests
 
    ```bash
    export API_BASE_URL=http://127.0.0.1:8000
+   export LOG_LEVEL=INFO
    PYTHONPATH=frontend python3 -m golf_desktop
    ```
 

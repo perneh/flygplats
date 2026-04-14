@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 
@@ -10,10 +11,14 @@ import qasync
 from PySide6.QtWidgets import QApplication
 
 from golf_desktop.api_client import GolfApiClient
+from golf_desktop.log_setup import configure_logging
 from golf_desktop.ui import MainWindow
+
+log = logging.getLogger(__name__)
 
 
 def main() -> None:
+    configure_logging()
     qapp = QApplication(sys.argv)
     loop = qasync.QEventLoop(qapp)
     asyncio.set_event_loop(loop)
@@ -30,6 +35,7 @@ def main() -> None:
         win.raise_()
         win.activateWindow()
         await stop.wait()
+        log.info("Application shutting down")
         await api.aclose()
 
     task = asyncio.ensure_future(_run())

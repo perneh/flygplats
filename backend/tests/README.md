@@ -8,7 +8,7 @@ Tests live under `backend/tests/` and are run with **pytest** from the **reposit
 
 ## Contents
 
-- [Collection order (`test_01` … `test_07`)](#collection-order-test_01--test_07)
+- [Collection order (`test_01` … `test_08`)](#collection-order-test_01--test_08)
 - [How tests talk to the API](#how-tests-talk-to-the-api)
 - [Fixtures (`conftest.py`)](#fixtures-conftestpy)
 - [What to read in this tree](#what-to-read-in-this-tree)
@@ -18,7 +18,7 @@ Tests live under `backend/tests/` and are run with **pytest** from the **reposit
 
 ---
 
-## Collection order (`test_01` … `test_07`)
+## Collection order (`test_01` … `test_08`)
 
 Pytest collects files in **lexicographic** order by path. Module names use a **two-digit prefix** so suites run in a stable, intentional sequence:
 
@@ -31,6 +31,7 @@ Pytest collects files in **lexicographic** order by path. Module names use a **t
 | 05 | `test_05_dev_logs.py` | Dev log endpoints (in-process; not collected when targeting HTTP). |
 | 06 | `test_06_match_statistics_suite.py` | Matches + player/course statistics. |
 | 07 | `test_07_load_scenario.py` | Heavy load test (**requires** external API); excluded from default Docker `CMD`. |
+| 08 | `test_08_tournaments.py` | Tournaments: flights, scorecards, hole POST, out/in/gross. |
 
 Adding e.g. `test_02_…` ensures it runs **after** `test_01_…` and **before** `test_03_…` with default collection.
 
@@ -65,7 +66,7 @@ FastAPI async testing guide: [FastAPI — Async Tests](https://fastapi.tiangolo.
 
 ## What to read in this tree
 
-See the [collection order](#collection-order-test_01--test_07) table. Support code: `tests/support/` (helpers, `load_scenario_fixtures`, etc.).
+See the [collection order](#collection-order-test_01--test_08) table. Support code: `tests/support/` (helpers, `load_scenario_fixtures`, etc.).
 
 ---
 

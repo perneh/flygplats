@@ -54,6 +54,7 @@ services:
       dockerfile: infra/Dockerfile.frontend
     environment:
       API_BASE_URL: http://backend:8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Use FRONTEND_DISPLAY in .env only — do NOT inherit the host shell's DISPLAY.
       # If DISPLAY=:0 is passed in, Qt looks for a Unix socket *inside the container* (wrong on macOS).
       # Linux + X11 socket: set FRONTEND_DISPLAY=:0 in .env and use infra/docker-compose.linux-x11.yml.

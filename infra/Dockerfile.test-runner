@@ -1,5 +1,6 @@
 # pytest only: Qt libs for pytest-qt offscreen; single pip layer.
-FROM python:3.12-slim-bookworm
+# Mirror: see infra/Dockerfile.backend for rationale.
+FROM public.ecr.aws/docker/library/python:3.12-slim-bookworm
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
