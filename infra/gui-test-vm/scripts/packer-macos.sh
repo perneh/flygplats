@@ -73,7 +73,9 @@ Environment:
   VARFILE=<file>        Packer var-file (default: min-byggfil.pkrvars.hcl)
   FIRMWARE=<path>       Override firmware path for start-qemu
   QEMU_BIN=<binary>     Override qemu binary for start-qemu
-  START_TIMEOUT=<sec>   SSH wait timeout for start-and-run-frontend (default: 180)
+  QEMU_DISPLAY=<mode>   QEMU display backend (default: none, e.g. cocoa)
+  START_TIMEOUT=<sec>   SSH wait timeout for start-and-run-frontend (default: 420)
+  SSH_PORT=<port>       Host SSH forward port (default: 2222)
 EOF
 }
 
@@ -188,15 +190,17 @@ cmd_all() {
 
 cmd_start_qemu() {
   [[ -f "$QCOW" ]] || die "Missing qcow image: $QCOW (run: $0 build)"
+  local ssh_port="${SSH_PORT:-2222}"
+  local qemu_display="${QEMU_DISPLAY:-none}"
   local fw="${FIRMWARE:-}"
   if [[ -z "$fw" && -f "$DEFAULT_FIRMWARE" ]]; then
     fw="$DEFAULT_FIRMWARE"
   fi
   if [[ -n "$fw" ]]; then
-    FIRMWARE="$fw" ./scripts/run-vm-qemu-example.sh "$QCOW"
+    FIRMWARE="$fw" QEMU_DISPLAY="$qemu_display" SSH_FWD_PORT="$ssh_port" ./scripts/run-vm-qemu-example.sh "$QCOW"
   else
     warn "No firmware path set. On Apple Silicon this usually fails."
-    ./scripts/run-vm-qemu-example.sh "$QCOW"
+    QEMU_DISPLAY="$qemu_display" SSH_FWD_PORT="$ssh_port" ./scripts/run-vm-qemu-example.sh "$QCOW"
   fi
 }
 
@@ -205,13 +209,15 @@ cmd_start_and_run_frontend() {
   [[ -f http/builder ]] || die "Missing private key: http/builder (run: $0 init)"
 
   local fw="${FIRMWARE:-}"
+  local ssh_port="${SSH_PORT:-2222}"
+  local qemu_display="${QEMU_DISPLAY:-none}"
   if [[ -z "$fw" && -f "$DEFAULT_FIRMWARE" ]]; then
     fw="$DEFAULT_FIRMWARE"
   fi
 
   local log_file="$ROOT/output/run-qemu.log"
-  local timeout="${START_TIMEOUT:-180}"
-  local start_cmd="./scripts/run-vm-qemu-example.sh \"$QCOW\""
+  local timeout="${START_TIMEOUT:-420}"
+  local start_cmd="QEMU_DISPLAY=\"$qemu_display\" SSH_FWD_PORT=\"$ssh_port\" ./scripts/run-vm-qemu-example.sh \"$QCOW\""
   if [[ -n "$fw" ]]; then
     start_cmd="FIRMWARE=\"$fw\" ${start_cmd}"
   fi
@@ -220,19 +226,19 @@ cmd_start_and_run_frontend() {
   # Intentionally detach so we can wait for SSH and trigger frontend startup.
   nohup bash -lc "$start_cmd" >"$log_file" 2>&1 &
 
-  info "Waiting for SSH on 127.0.0.1:2222 (timeout ${timeout}s)"
+  info "Waiting for SSH on 127.0.0.1:${ssh_port} (timeout ${timeout}s)"
   local elapsed=0
   while ! ssh -i http/builder -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
-    -o ConnectTimeout=5 -p 2222 debian@127.0.0.1 'echo ssh-ready' >/dev/null 2>&1; do
+    -o ConnectTimeout=5 -p "$ssh_port" debian@127.0.0.1 'echo ssh-ready' >/dev/null 2>&1; do
     sleep 3
     elapsed=$((elapsed + 3))
     if (( elapsed >= timeout )); then
-      die "Timed out waiting for SSH. Check VM log: $log_file"
+      die "Timed out waiting for SSH (try START_TIMEOUT=900). Check VM log: $log_file"
     fi
   done
 
   info "SSH is up. Starting frontend in guest."
-  ssh -i http/builder -o StrictHostKeyChecking=accept-new -p 2222 debian@127.0.0.1 \
+  ssh -i http/builder -o StrictHostKeyChecking=accept-new -p "$ssh_port" debian@127.0.0.1 \
     'nohup /usr/local/bin/run-frontend.sh >/tmp/run-frontend.log 2>&1 & echo "frontend-started"'
 
   info "Frontend launch command sent."
@@ -241,7 +247,8 @@ cmd_start_and_run_frontend() {
 
 cmd_ssh() {
   [[ -f http/builder ]] || die "Missing private key: http/builder (run: $0 init)"
-  exec ssh -i http/builder -o StrictHostKeyChecking=accept-new -p 2222 debian@127.0.0.1
+  local ssh_port="${SSH_PORT:-2222}"
+  exec ssh -i http/builder -o StrictHostKeyChecking=accept-new -p "$ssh_port" debian@127.0.0.1
 }
 
 cmd_status() {

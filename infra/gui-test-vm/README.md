@@ -109,6 +109,9 @@ Det kan ta **många minuter** första gången. När det är klart ligger resulta
 
 **`output/gui-test-vm.qcow2`**
 
+> **Obs:** under `make all`/`packer build` ser du normalt **inte** Golf Desktop-fönstret.
+> Bygget är headless och stänger av VM:en när artefakten är klar.
+
 ---
 
 ## 5. Starta VM:en (enklast med UTM på Mac)
@@ -132,6 +135,33 @@ Det kan ta **många minuter** första gången. När det är klart ligger resulta
 
 Appen pratar med backend via **`API_BASE_URL`** (förinställt i `/etc/golf-gui/env`). Om backend körs på din Mac kan du behöva ändra den adressen till något som VM:en når (det kan du göra med en texteditor som **sudo** + redigera filen — be någon med Linux‑vana om du fastnar).
 
+### Snabbstart via wrapper (macOS)
+
+Om du redan har byggt `output/gui-test-vm.qcow2` kan du starta VM + frontend i ett steg:
+
+```bash
+./scripts/packer-macos.sh start-and-run-frontend
+```
+
+För att öppna ett synligt VM-fönster på macOS (istället för headless), använd QEMU display backend `cocoa`:
+
+```bash
+QEMU_DISPLAY=cocoa ./scripts/packer-macos.sh start-and-run-frontend
+```
+
+Om du får portkrock på SSH-forward (`Could not set up host forwarding rule 'tcp::2222-:22'`), välj annan port:
+
+```bash
+SSH_PORT=2223 ./scripts/packer-macos.sh start-and-run-frontend
+SSH_PORT=2223 ./scripts/packer-macos.sh ssh
+```
+
+Om VM:en tar längre tid att boota (första start kan vara seg), höj timeout:
+
+```bash
+SSH_PORT=2223 START_TIMEOUT=900 ./scripts/packer-macos.sh start-and-run-frontend
+```
+
 ---
 
 ## Om något går fel
@@ -139,6 +169,8 @@ Appen pratar med backend via **`API_BASE_URL`** (förinställt i `/etc/golf-gui/
 | Problem | Vad du kan prova |
 |--------|-------------------|
 | **Packer säger SSH timeout** | Fel checksumma i `min-byggfil.pkrvars.hcl`, eller saknad **`firmware`** på Apple Silicon. |
+| **`FRONTEND_GIT_URL is empty` under provisioning** | Kontrollera `frontend_git_url` i `min-byggfil.pkrvars.hcl`. Kör via `./scripts/packer-macos.sh all` (skriptet sätter variabeln explicit). |
+| **`Could not set up host forwarding rule 'tcp::2222-:22'`** | Port `2222` används redan. Kör med `SSH_PORT=2223 ./scripts/packer-macos.sh start-and-run-frontend` (och samma `SSH_PORT` för `... ssh`). |
 | **UTM startar inte disken** | Bygg om efter steg 4; kontrollera att `output/gui-test-vm.qcow2` finns och inte är 0 byte. |
 | **Skrivbord syns inte** | Starta om VM:en; vänta 1–2 minuter första gången. |
 
