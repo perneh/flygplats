@@ -24,11 +24,17 @@ if [[ "$SRC_TYPE" == "git" && -z "$GIT_URL" ]]; then
 fi
 
 export DEBIAN_FRONTEND=noninteractive
+# Packer runs this as root via sudo -E; HOME can still be the SSH user (e.g. debian), so pip
+# warns that ~/.cache/pip is not writable. Use root's home for root-owned installs.
+if [[ "$(id -u)" -eq 0 ]]; then
+  export HOME=/root
+fi
 apt-get update -y
 apt-get install -y --no-install-recommends \
   ca-certificates curl git \
   xfce4 xfce4-goodies lightdm lightdm-gtk-greeter \
   dbus-x11 xserver-xorg x11-xserver-utils x11-apps x11-utils xdotool \
+  libxcb-cursor0 \
   python3 python3-venv python3-pip \
   unzip tar \
   openssh-server
