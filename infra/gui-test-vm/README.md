@@ -133,6 +133,8 @@ Det kan ta **många minuter** första gången. När det är klart ligger resulta
 /usr/local/bin/run-frontend.sh
 ```
 
+Efter ombyggnad med senaste `setup.sh` startar Golf Desktop **automatiskt** efter autologin till XFCE (XFCE autostart). Kommandot ovan behövs bara om du vill starta om manuellt.
+
 Appen pratar med backend via **`API_BASE_URL`** (förinställt i `/etc/golf-gui/env`). Om backend körs på din Mac kan du behöva ändra den adressen till något som VM:en når (det kan du göra med en texteditor som **sudo** + redigera filen — be någon med Linux‑vana om du fastnar).
 
 ### Snabbstart via wrapper (macOS)

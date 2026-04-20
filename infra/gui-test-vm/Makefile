@@ -25,6 +25,7 @@ help:
 	@echo ""
 	@echo "Obs: all gör INTE keys, checksum eller apt/brew-installation. Ha VARFILE"
 	@echo "     ifylld (checksum: make checksum-print) och http/builder innan all."
+	@echo "Obs: build tar bort ./output innan packer build (Packer kräver tom output-katalog)."
 	@echo ""
 	@echo "Exempel:"
 	@echo "  cp example.pkrvars.hcl min-byggfil.pkrvars.hcl"
@@ -85,6 +86,7 @@ build: prepare init
 	  echo "Kör: make apply-checksum VARFILE=$(VARFILE)   (eller make checksum-print)."; \
 	  exit 1; \
 	fi
+	rm -rf output
 	packer build -var-file="$(VARFILE)" .
 
 all: build

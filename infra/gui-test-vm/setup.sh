@@ -40,6 +40,7 @@ cat >/etc/lightdm/lightdm.conf.d/50-autologin.conf <<'EOF'
 [Seat:*]
 autologin-user=debian
 autologin-user-timeout=0
+autologin-session=xfce
 user-session=xfce
 EOF
 
@@ -72,6 +73,39 @@ WantedBy=graphical.target
 EOF
 
 systemctl enable golf-x11-acl.service
+
+cat >/usr/local/bin/golf-desktop-autostart.sh <<'EOF'
+#!/usr/bin/env bash
+# Start Golf Desktop once per graphical login (XFCE autostart).
+set -euo pipefail
+export DISPLAY="${DISPLAY:-:0}"
+export GDK_BACKEND="${GDK_BACKEND:-x11}"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+
+if pgrep -u "$(id -un)" -f "python.*-m golf_desktop" >/dev/null 2>&1; then
+  exit 0
+fi
+
+# Give LightDM/XFCE a moment to finish session setup.
+sleep 3
+exec /usr/local/bin/run-frontend.sh
+EOF
+chmod 755 /usr/local/bin/golf-desktop-autostart.sh
+
+# Per-user autostart (runs after autologin to XFCE).
+install -d -o debian -g debian -m 755 /home/debian/.config/autostart
+cat >/home/debian/.config/autostart/golf-desktop.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Golf Desktop (autostart)
+Comment=Start golf desktop after XFCE login
+Exec=/usr/local/bin/golf-desktop-autostart.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+EOF
+chown debian:debian /home/debian/.config/autostart/golf-desktop.desktop
+chmod 644 /home/debian/.config/autostart/golf-desktop.desktop
 
 # Reduce blanking / lock surprises in automated GUI tests
 mkdir -p /etc/xdg/autostart
