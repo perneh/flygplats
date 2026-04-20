@@ -17,9 +17,15 @@ args=(
   -drive "file=$QCOW2,if=virtio,cache=writeback"
   -netdev "user,id=net0,hostfwd=tcp::2222-:22,hostfwd=tcp:0.0.0.0:6000-:6000"
   -device "virtio-net,netdev=net0"
-  -vga virtio
   -display none
 )
+
+# aarch64 "virt" does not support -vga virtio.
+if [[ "$QEMU_BIN" == *"aarch64"* ]] || [[ "$MACHINE" == "virt" ]]; then
+  args+=(-device ramfb)
+else
+  args+=(-vga virtio)
+fi
 if [[ -n "$FIRMWARE" ]]; then
   args+=(-bios "$FIRMWARE")
 fi
