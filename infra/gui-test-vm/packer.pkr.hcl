@@ -189,7 +189,7 @@ build {
     ]
     inline = [
       "chmod +x /tmp/setup.sh /tmp/start-x11.sh /tmp/run-frontend.sh",
-      "sudo bash /tmp/setup.sh",
+      "sudo -E bash /tmp/setup.sh",
     ]
   }
 }
