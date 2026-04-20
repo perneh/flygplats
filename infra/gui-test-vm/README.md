@@ -162,6 +162,8 @@ Tvinga gammalt beteende (start via SSH även med fönster):
 START_REMOTE_FRONTEND=1 ./scripts/packer-macos.sh start-and-run-frontend
 ```
 
+**Tangentbord i QEMU-fönstret (macOS):** klicka i fönstret så att det får fokus. På `virt` + `aarch64` måste tangentbord/mus vara explicita — `run-vm-qemu-example.sh` lägger till `virtio-keyboard-pci` och `virtio-mouse-pci`. Om du fortfarande inte kan skriva, starta om VM:en efter senaste skriptändring.
+
 **Inloggning i QEMU-fönstret (LightDM):**
 
 - Användare: **`debian`**

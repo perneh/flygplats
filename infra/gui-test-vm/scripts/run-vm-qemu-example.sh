@@ -24,8 +24,10 @@ args=(
 )
 
 # aarch64 "virt" does not support -vga virtio.
+# Without explicit input devices, the cocoa/SDL window often shows video but accepts no keyboard/mouse.
 if [[ "$QEMU_BIN" == *"aarch64"* ]] || [[ "$MACHINE" == "virt" ]]; then
   args+=(-device ramfb)
+  args+=(-device virtio-keyboard-pci -device virtio-mouse-pci)
 else
   args+=(-vga virtio)
 fi
