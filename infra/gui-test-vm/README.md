@@ -151,6 +151,6 @@ Appen pratar med backend via **`API_BASE_URL`** (förinställt i `/etc/golf-gui/
 - **Automatisera Packer-flödet med wrapper-skript:**
   - macOS: `scripts/packer-macos.sh all`
   - Linux: `scripts/packer-linux.sh all`
-  - Vanliga delsteg: `prep`, `init`, `build`, `start-qemu`, `ssh`, `status` (kör `... help` för detaljer).
+  - Vanliga delsteg: `prep`, `init`, `build`, `start-qemu`, `start-and-run-frontend`, `ssh`, `status` (kör `... help` för detaljer).
 - **Proxmox-flöde (bygga + importera + template/clone):** se `README-PROXMOX.md`.
 - **Ändra RAM, skärmupplösning, Git‑gren:** redigera `packer.pkr.hcl` eller lägg till `-var`‑flaggor enligt [Packer dokumentation](https://developer.hashicorp.com/packer/docs).

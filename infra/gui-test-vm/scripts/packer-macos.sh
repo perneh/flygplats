@@ -64,6 +64,7 @@ Commands:
   build        Build qcow2 with make all
   all          prep + init + build
   start-qemu   Start built VM with QEMU example wrapper
+  start-and-run-frontend  Start VM in background, wait for SSH, run frontend
   ssh          SSH into VM started by start-qemu (port 2222)
   status       Print quick status for keys/varfile/output
   help         Show this help
@@ -72,6 +73,7 @@ Environment:
   VARFILE=<file>        Packer var-file (default: min-byggfil.pkrvars.hcl)
   FIRMWARE=<path>       Override firmware path for start-qemu
   QEMU_BIN=<binary>     Override qemu binary for start-qemu
+  START_TIMEOUT=<sec>   SSH wait timeout for start-and-run-frontend (default: 180)
 EOF
 }
 
@@ -198,6 +200,45 @@ cmd_start_qemu() {
   fi
 }
 
+cmd_start_and_run_frontend() {
+  [[ -f "$QCOW" ]] || die "Missing qcow image: $QCOW (run: $0 build)"
+  [[ -f http/builder ]] || die "Missing private key: http/builder (run: $0 init)"
+
+  local fw="${FIRMWARE:-}"
+  if [[ -z "$fw" && -f "$DEFAULT_FIRMWARE" ]]; then
+    fw="$DEFAULT_FIRMWARE"
+  fi
+
+  local log_file="$ROOT/output/run-qemu.log"
+  local timeout="${START_TIMEOUT:-180}"
+  local start_cmd="./scripts/run-vm-qemu-example.sh \"$QCOW\""
+  if [[ -n "$fw" ]]; then
+    start_cmd="FIRMWARE=\"$fw\" ${start_cmd}"
+  fi
+
+  info "Starting VM in background (log: $log_file)"
+  # Intentionally detach so we can wait for SSH and trigger frontend startup.
+  nohup bash -lc "$start_cmd" >"$log_file" 2>&1 &
+
+  info "Waiting for SSH on 127.0.0.1:2222 (timeout ${timeout}s)"
+  local elapsed=0
+  while ! ssh -i http/builder -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+    -o ConnectTimeout=5 -p 2222 debian@127.0.0.1 'echo ssh-ready' >/dev/null 2>&1; do
+    sleep 3
+    elapsed=$((elapsed + 3))
+    if (( elapsed >= timeout )); then
+      die "Timed out waiting for SSH. Check VM log: $log_file"
+    fi
+  done
+
+  info "SSH is up. Starting frontend in guest."
+  ssh -i http/builder -o StrictHostKeyChecking=accept-new -p 2222 debian@127.0.0.1 \
+    'nohup /usr/local/bin/run-frontend.sh >/tmp/run-frontend.log 2>&1 & echo "frontend-started"'
+
+  info "Frontend launch command sent."
+  info "Open the VM display (UTM or QEMU viewer) to see Golf Desktop."
+}
+
 cmd_ssh() {
   [[ -f http/builder ]] || die "Missing private key: http/builder (run: $0 init)"
   exec ssh -i http/builder -o StrictHostKeyChecking=accept-new -p 2222 debian@127.0.0.1
@@ -221,6 +262,7 @@ main() {
     build) cmd_build "$@" ;;
     all) cmd_all "$@" ;;
     start-qemu) cmd_start_qemu "$@" ;;
+    start-and-run-frontend) cmd_start_and_run_frontend "$@" ;;
     ssh) cmd_ssh "$@" ;;
     status) cmd_status "$@" ;;
     help|-h|--help) usage ;;
