@@ -171,7 +171,9 @@ cmd_build() {
   resolved_git_url="$(resolve_frontend_git_url)"
   [[ -n "$resolved_git_url" ]] || die "frontend_git_url resolved empty before build."
   info "Using frontend_git_url: $resolved_git_url"
-  PKR_VAR_frontend_git_url="$resolved_git_url" make all VARFILE="$VARFILE"
+  env -u PKR_VAR_frontend_git_url -u PKR_VAR_FRONTEND_GIT_URL \
+    PKR_VAR_frontend_git_url="$resolved_git_url" \
+    make all VARFILE="$VARFILE"
   [[ -f "$QCOW" ]] || die "Build finished but qcow missing: $QCOW"
   info "Build complete: $QCOW"
 }

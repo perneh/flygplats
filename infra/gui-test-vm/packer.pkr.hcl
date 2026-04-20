@@ -91,6 +91,10 @@ variable "frontend_source_type" {
 variable "frontend_git_url" {
   type    = string
   default = "https://github.com/example/flygplats.git"
+  validation {
+    condition     = trimspace(var.frontend_git_url) != ""
+    error_message = "Frontend git URL must not be empty."
+  }
 }
 
 variable "frontend_git_ref" {
