@@ -81,34 +81,56 @@ set -euo pipefail
 export DISPLAY="${DISPLAY:-:0}"
 export GDK_BACKEND="${GDK_BACKEND:-x11}"
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+LOG=/tmp/golf-desktop-autostart.log
+exec >>"$LOG" 2>&1
+echo "$(date -Is) autostart: user=$(id -un) display=$DISPLAY"
 
 if pgrep -u "$(id -un)" -f "python.*-m golf_desktop" >/dev/null 2>&1; then
+  echo "$(date -Is) autostart: golf_desktop already running"
   exit 0
 fi
 
-# Give LightDM/XFCE a moment to finish session setup.
-sleep 3
+# Wait for Xorg (LightDM session) — first boot can be slow.
+ready=0
+for _ in $(seq 1 120); do
+  if command -v xdpyinfo >/dev/null 2>&1 && xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 1
+done
+if [[ "$ready" != "1" ]]; then
+  echo "$(date -Is) autostart: WARNING xdpyinfo never succeeded for $DISPLAY (starting anyway)"
+fi
+
+sleep 2
+echo "$(date -Is) autostart: launching run-frontend.sh"
 exec /usr/local/bin/run-frontend.sh
 EOF
 chmod 755 /usr/local/bin/golf-desktop-autostart.sh
 
-# Per-user autostart (runs after autologin to XFCE).
-install -d -o debian -g debian -m 755 /home/debian/.config/autostart
-cat >/home/debian/.config/autostart/golf-desktop.desktop <<'EOF'
-[Desktop Entry]
+autostart_desktop='[Desktop Entry]
 Type=Application
 Name=Golf Desktop (autostart)
 Comment=Start golf desktop after XFCE login
 Exec=/usr/local/bin/golf-desktop-autostart.sh
 Hidden=false
 NoDisplay=false
+OnlyShowIn=XFCE
 X-GNOME-Autostart-enabled=true
-EOF
+'
+
+# Per-user autostart (runs after autologin to XFCE).
+install -d -o debian -g debian -m 755 /home/debian/.config/autostart
+printf '%s\n' "$autostart_desktop" >/home/debian/.config/autostart/golf-desktop.desktop
 chown debian:debian /home/debian/.config/autostart/golf-desktop.desktop
 chmod 644 /home/debian/.config/autostart/golf-desktop.desktop
 
 # Reduce blanking / lock surprises in automated GUI tests
 mkdir -p /etc/xdg/autostart
+printf '%s\n' "$autostart_desktop" >/etc/xdg/autostart/golf-desktop.desktop
+chmod 644 /etc/xdg/autostart/golf-desktop.desktop
+
 cat >/etc/xdg/autostart/golf-xfce-power.desktop <<'EOF'
 [Desktop Entry]
 Type=Application

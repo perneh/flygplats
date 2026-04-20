@@ -7,10 +7,14 @@ users:
     groups: [adm, sudo]
     shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
-    lock_passwd: false
-    hashed_passwd: __DEBIAN_PASSWORD_HASH__
     ssh_authorized_keys:
       - __BUILDER_PUB__
+
+# Console / LightDM password for user debian (lab). Substituted at image build time.
+chpasswd:
+  list: |
+    debian:__VM_CONSOLE_PASSWORD__
+  expire: false
 
 ssh_pwauth: false
 

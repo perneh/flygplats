@@ -14,6 +14,17 @@ warn() { printf "WARN: %s\n" "$*" >&2; }
 die() { printf "ERROR: %s\n" "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+default_qemu_display() {
+  if [[ -n "${QEMU_DISPLAY+x}" && -n "${QEMU_DISPLAY}" ]]; then
+    printf "%s" "$QEMU_DISPLAY"
+    return 0
+  fi
+  case "$(uname -s)" in
+    Darwin) printf "cocoa" ;;
+    *) printf "none" ;;
+  esac
+}
+
 upsert_hcl_var() {
   local key="$1"
   local value="$2"
@@ -74,10 +85,11 @@ Environment:
   VARFILE=<file>        Packer var-file (default: min-byggfil.pkrvars.hcl)
   FIRMWARE=<path>       Override firmware path for start-qemu
   QEMU_BIN=<binary>     Override qemu binary for start-qemu
-  QEMU_DISPLAY=<mode>   QEMU display backend (default: none, e.g. cocoa)
+  QEMU_DISPLAY=<mode>   QEMU display (default on macOS: cocoa; Linux: none)
   START_TIMEOUT=<sec>   SSH wait timeout for start-and-run-frontend (default: 420)
   SSH_PORT=<port>       Host SSH forward port (default: 2222)
   VM_CONSOLE_PASSWORD=<pw>  LightDM/console password for debian (default: debian; set before build)
+  START_REMOTE_FRONTEND=0|1  Force SSH launch of frontend (default: 0 with cocoa, 1 with none)
 EOF
 }
 
@@ -206,7 +218,8 @@ cmd_start_qemu() {
   [[ -f "$QCOW" ]] || die "Missing qcow image: $QCOW (run: $0 build)"
   assert_qcow_unlocked
   local ssh_port="${SSH_PORT:-2222}"
-  local qemu_display="${QEMU_DISPLAY:-none}"
+  local qemu_display
+  qemu_display="$(default_qemu_display)"
   local fw="${FIRMWARE:-}"
   if [[ -z "$fw" && -f "$DEFAULT_FIRMWARE" ]]; then
     fw="$DEFAULT_FIRMWARE"
@@ -226,7 +239,8 @@ cmd_start_and_run_frontend() {
 
   local fw="${FIRMWARE:-}"
   local ssh_port="${SSH_PORT:-2222}"
-  local qemu_display="${QEMU_DISPLAY:-none}"
+  local qemu_display
+  qemu_display="$(default_qemu_display)"
   if [[ -z "$fw" && -f "$DEFAULT_FIRMWARE" ]]; then
     fw="$DEFAULT_FIRMWARE"
   fi
@@ -253,12 +267,27 @@ cmd_start_and_run_frontend() {
     fi
   done
 
-  info "SSH is up. Starting frontend in guest."
-  ssh -i http/builder -o StrictHostKeyChecking=accept-new -p "$ssh_port" debian@127.0.0.1 \
-    'export DISPLAY=:0; nohup /usr/local/bin/run-frontend.sh >/tmp/run-frontend.log 2>&1 & sleep 1; tail -n 30 /tmp/run-frontend.log 2>/dev/null || true; echo "frontend-started"'
+  local do_remote="${START_REMOTE_FRONTEND:-}"
+  if [[ -z "$do_remote" ]]; then
+    if [[ "$qemu_display" == "none" ]]; then
+      do_remote=1
+    else
+      do_remote=0
+    fi
+  fi
 
-  info "Frontend launch command sent."
-  info "Open the VM display (UTM or QEMU viewer) to see Golf Desktop."
+  if [[ "$do_remote" == "1" ]]; then
+    info "SSH is up. Starting frontend in guest (headless / forced remote)."
+    ssh -i http/builder -o StrictHostKeyChecking=accept-new -p "$ssh_port" debian@127.0.0.1 \
+      'export DISPLAY=:0; nohup /usr/local/bin/run-frontend.sh >/tmp/run-frontend.log 2>&1 & sleep 1; tail -n 30 /tmp/run-frontend.log 2>/dev/null || true; echo "frontend-started"'
+    info "Frontend launch command sent via SSH."
+  else
+    info "Skipping SSH frontend launch (guest autostart handles GUI in QEMU window)."
+    info "If the app does not appear, check in guest: /tmp/golf-desktop-autostart.log and /tmp/run-frontend.log"
+    info "Force SSH launch: START_REMOTE_FRONTEND=1 $0 start-and-run-frontend"
+  fi
+
+  info "QEMU display backend: $qemu_display (log: $log_file)"
   info "If LightDM asks for credentials: user debian, password ${VM_CONSOLE_PASSWORD:-debian} (lab default; override VM_CONSOLE_PASSWORD before build)."
 }
 

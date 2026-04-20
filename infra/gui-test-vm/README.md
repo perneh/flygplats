@@ -145,10 +145,21 @@ Om du redan har byggt `output/gui-test-vm.qcow2` kan du starta VM + frontend i e
 ./scripts/packer-macos.sh start-and-run-frontend
 ```
 
-För att öppna ett synligt VM-fönster på macOS (istället för headless), använd QEMU display backend `cocoa`:
+På **macOS** använder `packer-macos.sh start-and-run-frontend` nu **`cocoa` som standard**, så du får ett QEMU‑fönster utan extra flagga. Vill du köra headless igen:
 
 ```bash
-QEMU_DISPLAY=cocoa ./scripts/packer-macos.sh start-and-run-frontend
+QEMU_DISPLAY=none ./scripts/packer-macos.sh start-and-run-frontend
+```
+
+Golf Desktop startar i QEMU‑fönstret via **XFCE autostart** i gästen (efter ombyggnad). Loggar om något strular:
+
+- `/tmp/golf-desktop-autostart.log`
+- `/tmp/run-frontend.log`
+
+Tvinga gammalt beteende (start via SSH även med fönster):
+
+```bash
+START_REMOTE_FRONTEND=1 ./scripts/packer-macos.sh start-and-run-frontend
 ```
 
 **Inloggning i QEMU-fönstret (LightDM):**

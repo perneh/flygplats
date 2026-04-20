@@ -18,10 +18,17 @@ if [[ ! -f "$TPL" ]]; then
   echo "Missing template $TPL"
   exit 1
 fi
-KEY=$(tr -d '\n\r' <"$PUB")
-HASH="$(openssl passwd -6 -salt roundssalt "$VM_CONSOLE_PASSWORD")"
-sed \
-  -e "s|__BUILDER_PUB__|${KEY}|g" \
-  -e "s|__DEBIAN_PASSWORD_HASH__|${HASH}|g" \
-  "$TPL" >"$OUT"
+# Use awk + ENVIRON so SSH pubkey and password are never re-parsed by the shell
+# (SHA512-crypt hashes contain "$" which breaks sed "...${HASH}...").
+export BUILDER_KEY
+BUILDER_KEY="$(tr -d '\n\r' <"$PUB")"
+export VM_CONSOLE_PASSWORD
+
+awk '
+  {
+    gsub(/__BUILDER_PUB__/, ENVIRON["BUILDER_KEY"])
+    gsub(/__VM_CONSOLE_PASSWORD__/, ENVIRON["VM_CONSOLE_PASSWORD"])
+    print
+  }
+' "$TPL" >"$OUT"
 echo "Wrote $OUT"
