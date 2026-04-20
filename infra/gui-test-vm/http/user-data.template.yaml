@@ -7,6 +7,8 @@ users:
     groups: [adm, sudo]
     shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    hashed_passwd: __DEBIAN_PASSWORD_HASH__
     ssh_authorized_keys:
       - __BUILDER_PUB__
 

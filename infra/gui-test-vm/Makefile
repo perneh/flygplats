@@ -6,6 +6,7 @@
 VARFILE ?= min-byggfil.pkrvars.hcl
 DEBIAN_SUMS ?= https://cloud.debian.org/images/cloud/bookworm/latest/SHA512SUMS
 DEBIAN_QCOW ?= debian-12-generic-arm64.qcow2
+VM_CONSOLE_PASSWORD ?= debian
 
 .PHONY: help prep keys keys-force prepare init build all checksum-print apply-checksum clean
 
@@ -30,7 +31,7 @@ help:
 	@echo "  make apply-checksum VARFILE=min-byggfil.pkrvars.hcl   # eller: make checksum-print och klistra in manuellt"
 	@echo "  make prep && make keys && make all VARFILE=min-byggfil.pkrvars.hcl"
 	@echo ""
-	@echo "Variabler: VARFILE=...  DEBIAN_SUMS=...  DEBIAN_QCOW=... (för amd64 byt qcow-namn)"
+	@echo "Variabler: VARFILE=...  DEBIAN_SUMS=...  DEBIAN_QCOW=...  VM_CONSOLE_PASSWORD=... (för amd64 byt qcow-namn)"
 
 prep:
 	@chmod +x scripts/prep-tools.sh
@@ -61,7 +62,7 @@ apply-checksum:
 
 prepare:
 	chmod +x scripts/00-prepare-cloud-init.sh build.sh
-	./scripts/00-prepare-cloud-init.sh
+	VM_CONSOLE_PASSWORD="$(VM_CONSOLE_PASSWORD)" ./scripts/00-prepare-cloud-init.sh
 
 init:
 	packer init .

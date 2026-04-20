@@ -65,6 +65,7 @@ Commands:
   all          prep + init + build
   start-qemu   Start built VM with QEMU example wrapper
   start-and-run-frontend  Start VM in background, wait for SSH, run frontend
+  stop-qemu    Stop local QEMU process using this qcow2 image
   ssh          SSH into VM started by start-qemu (port 2222)
   status       Print quick status for keys/varfile/output
   help         Show this help
@@ -76,6 +77,7 @@ Environment:
   QEMU_DISPLAY=<mode>   QEMU display backend (default: none, e.g. cocoa)
   START_TIMEOUT=<sec>   SSH wait timeout for start-and-run-frontend (default: 420)
   SSH_PORT=<port>       Host SSH forward port (default: 2222)
+  VM_CONSOLE_PASSWORD=<pw>  LightDM/console password for debian (default: debian; set before build)
 EOF
 }
 
@@ -127,6 +129,18 @@ resolve_frontend_git_url() {
   printf "%s" "$effective"
 }
 
+find_qcow_lock_pid() {
+  lsof "$QCOW" 2>/dev/null | awk 'NR==2 {print $2}'
+}
+
+assert_qcow_unlocked() {
+  local pid
+  pid="$(find_qcow_lock_pid || true)"
+  if [[ -n "$pid" ]]; then
+    die "qcow image is already in use by PID $pid. Run: $0 stop-qemu"
+  fi
+}
+
 maybe_set_firmware_hint() {
   if [[ "$(uname -m)" != "arm64" ]]; then
     return 0
@@ -156,7 +170,7 @@ ensure_macos_arm_defaults() {
 }
 
 cmd_prep() {
-  make prep
+  make prep VM_CONSOLE_PASSWORD="${VM_CONSOLE_PASSWORD:-debian}"
 }
 
 cmd_init() {
@@ -177,7 +191,7 @@ cmd_build() {
   info "Using frontend_git_url: $resolved_git_url"
   env -u PKR_VAR_frontend_git_url -u PKR_VAR_FRONTEND_GIT_URL \
     PKR_VAR_frontend_git_url="$resolved_git_url" \
-    make all VARFILE="$VARFILE"
+    make all VARFILE="$VARFILE" VM_CONSOLE_PASSWORD="${VM_CONSOLE_PASSWORD:-debian}"
   [[ -f "$QCOW" ]] || die "Build finished but qcow missing: $QCOW"
   info "Build complete: $QCOW"
 }
@@ -190,6 +204,7 @@ cmd_all() {
 
 cmd_start_qemu() {
   [[ -f "$QCOW" ]] || die "Missing qcow image: $QCOW (run: $0 build)"
+  assert_qcow_unlocked
   local ssh_port="${SSH_PORT:-2222}"
   local qemu_display="${QEMU_DISPLAY:-none}"
   local fw="${FIRMWARE:-}"
@@ -207,6 +222,7 @@ cmd_start_qemu() {
 cmd_start_and_run_frontend() {
   [[ -f "$QCOW" ]] || die "Missing qcow image: $QCOW (run: $0 build)"
   [[ -f http/builder ]] || die "Missing private key: http/builder (run: $0 init)"
+  assert_qcow_unlocked
 
   local fw="${FIRMWARE:-}"
   local ssh_port="${SSH_PORT:-2222}"
@@ -239,10 +255,28 @@ cmd_start_and_run_frontend() {
 
   info "SSH is up. Starting frontend in guest."
   ssh -i http/builder -o StrictHostKeyChecking=accept-new -p "$ssh_port" debian@127.0.0.1 \
-    'nohup /usr/local/bin/run-frontend.sh >/tmp/run-frontend.log 2>&1 & echo "frontend-started"'
+    'export DISPLAY=:0; nohup /usr/local/bin/run-frontend.sh >/tmp/run-frontend.log 2>&1 & sleep 1; tail -n 30 /tmp/run-frontend.log 2>/dev/null || true; echo "frontend-started"'
 
   info "Frontend launch command sent."
   info "Open the VM display (UTM or QEMU viewer) to see Golf Desktop."
+  info "If LightDM asks for credentials: user debian, password ${VM_CONSOLE_PASSWORD:-debian} (lab default; override VM_CONSOLE_PASSWORD before build)."
+}
+
+cmd_stop_qemu() {
+  local pid
+  pid="$(find_qcow_lock_pid || true)"
+  if [[ -z "$pid" ]]; then
+    info "No QEMU process currently locking $QCOW"
+    return 0
+  fi
+  info "Stopping QEMU PID $pid"
+  kill "$pid"
+  sleep 1
+  if kill -0 "$pid" >/dev/null 2>&1; then
+    warn "Process still running, sending SIGKILL to $pid"
+    kill -9 "$pid"
+  fi
+  info "QEMU stopped."
 }
 
 cmd_ssh() {
@@ -270,6 +304,7 @@ main() {
     all) cmd_all "$@" ;;
     start-qemu) cmd_start_qemu "$@" ;;
     start-and-run-frontend) cmd_start_and_run_frontend "$@" ;;
+    stop-qemu) cmd_stop_qemu "$@" ;;
     ssh) cmd_ssh "$@" ;;
     status) cmd_status "$@" ;;
     help|-h|--help) usage ;;

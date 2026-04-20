@@ -149,6 +149,17 @@ För att öppna ett synligt VM-fönster på macOS (istället för headless), anv
 QEMU_DISPLAY=cocoa ./scripts/packer-macos.sh start-and-run-frontend
 ```
 
+**Inloggning i QEMU-fönstret (LightDM):**
+
+- Användare: **`debian`**
+- Lösenord (labb‑default): **`debian`**
+
+Lösenordet sätts via cloud‑init när du bygger om VM:en. Du kan ändra det innan build:
+
+```bash
+VM_CONSOLE_PASSWORD='mitt-lösen' ./scripts/packer-macos.sh all
+```
+
 Om du får portkrock på SSH-forward (`Could not set up host forwarding rule 'tcp::2222-:22'`), välj annan port:
 
 ```bash
@@ -162,6 +173,12 @@ Om VM:en tar längre tid att boota (första start kan vara seg), höj timeout:
 SSH_PORT=2223 START_TIMEOUT=900 ./scripts/packer-macos.sh start-and-run-frontend
 ```
 
+Om du får låsfel på diskfilen (`Failed to get "write" lock`), stoppa tidigare QEMU-process först:
+
+```bash
+./scripts/packer-macos.sh stop-qemu
+```
+
 ---
 
 ## Om något går fel
@@ -171,6 +188,7 @@ SSH_PORT=2223 START_TIMEOUT=900 ./scripts/packer-macos.sh start-and-run-frontend
 | **Packer säger SSH timeout** | Fel checksumma i `min-byggfil.pkrvars.hcl`, eller saknad **`firmware`** på Apple Silicon. |
 | **`FRONTEND_GIT_URL is empty` under provisioning** | Kontrollera `frontend_git_url` i `min-byggfil.pkrvars.hcl`. Kör via `./scripts/packer-macos.sh all` (skriptet sätter variabeln explicit). |
 | **`Could not set up host forwarding rule 'tcp::2222-:22'`** | Port `2222` används redan. Kör med `SSH_PORT=2223 ./scripts/packer-macos.sh start-and-run-frontend` (och samma `SSH_PORT` för `... ssh`). |
+| **`Failed to get "write" lock`** | En annan QEMU-instans använder samma `output/gui-test-vm.qcow2`. Kör `./scripts/packer-macos.sh stop-qemu` och starta igen. |
 | **UTM startar inte disken** | Bygg om efter steg 4; kontrollera att `output/gui-test-vm.qcow2` finns och inte är 0 byte. |
 | **Skrivbord syns inte** | Starta om VM:en; vänta 1–2 minuter första gången. |
 
@@ -183,6 +201,6 @@ SSH_PORT=2223 START_TIMEOUT=900 ./scripts/packer-macos.sh start-and-run-frontend
 - **Automatisera Packer-flödet med wrapper-skript:**
   - macOS: `scripts/packer-macos.sh all`
   - Linux: `scripts/packer-linux.sh all`
-  - Vanliga delsteg: `prep`, `init`, `build`, `start-qemu`, `start-and-run-frontend`, `ssh`, `status` (kör `... help` för detaljer).
+  - Vanliga delsteg: `prep`, `init`, `build`, `start-qemu`, `start-and-run-frontend`, `stop-qemu`, `ssh`, `status` (kör `... help` för detaljer).
 - **Proxmox-flöde (bygga + importera + template/clone):** se `README-PROXMOX.md`.
 - **Ändra RAM, skärmupplösning, Git‑gren:** redigera `packer.pkr.hcl` eller lägg till `-var`‑flaggor enligt [Packer dokumentation](https://developer.hashicorp.com/packer/docs).

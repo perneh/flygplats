@@ -2,6 +2,7 @@
 # Convenience: regenerate cloud-init user-data, init plugins, then packer build (pass extra args to packer).
 set -euo pipefail
 cd "$(dirname "$0")"
+export VM_CONSOLE_PASSWORD="${VM_CONSOLE_PASSWORD:-debian}"
 ./scripts/00-prepare-cloud-init.sh
 packer init .
 exec packer build "$@" .

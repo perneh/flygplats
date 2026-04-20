@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PUB="$ROOT/http/builder.pub"
 TPL="$ROOT/http/user-data.template.yaml"
 OUT="$ROOT/http/user-data"
+VM_CONSOLE_PASSWORD="${VM_CONSOLE_PASSWORD:-debian}"
 if [[ ! -f "$PUB" ]]; then
   echo "Missing $PUB — run:"
   echo "  ssh-keygen -t ed25519 -f \"$ROOT/http/builder\" -N \"\""
@@ -18,5 +19,9 @@ if [[ ! -f "$TPL" ]]; then
   exit 1
 fi
 KEY=$(tr -d '\n\r' <"$PUB")
-sed "s|__BUILDER_PUB__|${KEY}|g" "$TPL" >"$OUT"
+HASH="$(openssl passwd -6 -salt roundssalt "$VM_CONSOLE_PASSWORD")"
+sed \
+  -e "s|__BUILDER_PUB__|${KEY}|g" \
+  -e "s|__DEBIAN_PASSWORD_HASH__|${HASH}|g" \
+  "$TPL" >"$OUT"
 echo "Wrote $OUT"
