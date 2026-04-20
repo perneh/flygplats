@@ -205,3 +205,40 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# -----------------------------------------------------------------------------
+# Golf monorepo — large / generated / local-only (keep repo lean)
+# -----------------------------------------------------------------------------
+
+# macOS / editors
+.DS_Store
+*.swp
+*~
+
+# Disk images & VM / Packer outputs (can be multi‑GB)
+*.qcow2
+*.qcow2.*
+*.iso
+*.vdi
+*.vmdk
+*.img
+*.raw
+infra/gui-test-vm/output/
+**/packer_cache/
+.packer.d/
+
+# Local env overrides (may contain secrets or machine-specific URLs)
+.env.local
+.env.*.local
+
+# Compose / DB data copied to workspace by mistake
+pgdata/
+**/pgdata/
+
+# Archives / dumps often used for one-off imports
+*.sql.gz
+*.dump
+
+# Optional: very large local media under frontend (uncomment if you add big binaries only locally)
+# frontend/images/**/*.png
+# frontend/images/**/*.jpg

@@ -1,0 +1,6 @@
+http/builder
+http/builder.pub
+http/user-data
+output/
+*.auto.pkrvars.hcl
+packer_cache/

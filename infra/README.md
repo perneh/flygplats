@@ -275,6 +275,8 @@ The first message often mentions `libxcb-cursor`, but the real missing `.so` may
 
 The test image is **not** started by default. It is enabled with the Compose profile **`tests`**.
 
+For a **full desktop VM** (XFCE + remote X11 + Packer/QEMU) used to run the GUI app under automation, see **[gui-test-vm/README.md](gui-test-vm/README.md)** (`infra/gui-test-vm/`).
+
 ### Run the default test command (one-shot)
 
 Runs the image `CMD` (pytest on backend + frontend tests), then exits:
