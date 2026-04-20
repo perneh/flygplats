@@ -15,6 +15,7 @@ GIT_URL="${FRONTEND_GIT_URL:-}"
 GIT_REF="${FRONTEND_GIT_REF:-main}"
 DW="${DISPLAY_WIDTH:-1280}"
 DH="${DISPLAY_HEIGHT:-800}"
+VM_XKB_LAYOUT="${VM_XKB_LAYOUT:-se}"
 
 if [[ "$SRC_TYPE" == "git" && -z "$GIT_URL" ]]; then
   echo "FRONTEND_GIT_URL is empty. Set frontend_git_url in your var-file" >&2
@@ -32,13 +33,45 @@ apt-get install -y --no-install-recommends \
   unzip tar \
   openssh-server
 
+# Console + X11 keyboard layout (matches Swedish PC by default; override VM_XKB_LAYOUT in Packer).
+cat >/etc/default/keyboard <<EOF
+XKBMODEL="pc105"
+XKBLAYOUT="${VM_XKB_LAYOUT}"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"
+EOF
+if command -v localectl >/dev/null 2>&1; then
+  localectl set-x11-keymap "${VM_XKB_LAYOUT}" pc105 "" "" || true
+fi
+
+cat >/usr/local/bin/golf-xkb-session.sh <<EOF
+#!/bin/sh
+# Applied at XFCE session start (LightDM does not always pick layout before first setxkbmap).
+setxkbmap "${VM_XKB_LAYOUT}" 2>/dev/null || true
+EOF
+chmod 755 /usr/local/bin/golf-xkb-session.sh
+
+mkdir -p /etc/xdg/autostart
+cat >/etc/xdg/autostart/golf-xkb-layout.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Golf GUI keyboard layout
+Exec=/usr/local/bin/golf-xkb-session.sh
+Hidden=false
+NoDisplay=false
+OnlyShowIn=XFCE
+X-GNOME-Autostart-enabled=true
+EOF
+chmod 644 /etc/xdg/autostart/golf-xkb-layout.desktop
+
 # X11 only — do not install gdm3 (Wayland default on some stacks).
 systemctl set-default graphical.target
 
 mkdir -p /etc/lightdm/lightdm.conf.d
 cat >/etc/lightdm/lightdm.conf.d/50-autologin.conf <<'EOF'
 [Seat:*]
-autologin-user=debian
+autologin-user=admin
 autologin-user-timeout=0
 autologin-session=xfce
 user-session=xfce
@@ -120,11 +153,11 @@ OnlyShowIn=XFCE
 X-GNOME-Autostart-enabled=true
 '
 
-# Per-user autostart (runs after autologin to XFCE).
-install -d -o debian -g debian -m 755 /home/debian/.config/autostart
-printf '%s\n' "$autostart_desktop" >/home/debian/.config/autostart/golf-desktop.desktop
-chown debian:debian /home/debian/.config/autostart/golf-desktop.desktop
-chmod 644 /home/debian/.config/autostart/golf-desktop.desktop
+# Per-user autostart (runs after autologin to XFCE as admin).
+install -d -o admin -g admin -m 755 /home/admin/.config/autostart
+printf '%s\n' "$autostart_desktop" >/home/admin/.config/autostart/golf-desktop.desktop
+chown admin:admin /home/admin/.config/autostart/golf-desktop.desktop
+chmod 644 /home/admin/.config/autostart/golf-desktop.desktop
 
 # Reduce blanking / lock surprises in automated GUI tests
 mkdir -p /etc/xdg/autostart

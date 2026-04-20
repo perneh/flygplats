@@ -17,3 +17,6 @@ qemu_binary = "qemu-system-aarch64"
 machine_type = "virt"
 accelerator = "hvf"
 cloud_image_url = "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-arm64.qcow2"
+
+# Guest X11/console layout. On macOS, packer-macos.sh sets QEMU -k from AppleLocale unless QEMU_KBD_LAYOUT is set.
+# vm_xkb_layout = "se"

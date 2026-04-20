@@ -12,6 +12,8 @@ QCOW2="${1:-$ROOT/output/gui-test-vm.qcow2}"
 : "${SSH_FWD_PORT:=2222}"
 : "${X11_FWD_PORT:=6000}"
 : "${QEMU_DISPLAY:=none}" # e.g. none, cocoa (macOS), sdl, gtk
+# Optional: QEMU keymap for host→guest translation (see `qemu -k help`). Example: sv, us, de.
+: "${QEMU_KBD_LAYOUT:=}"
 
 args=(
   -machine "$MACHINE,accel=hvf"
@@ -35,8 +37,15 @@ if [[ -n "$FIRMWARE" ]]; then
   args+=(-bios "$FIRMWARE")
 fi
 
+if [[ -n "${QEMU_KBD_LAYOUT}" ]]; then
+  args+=(-k "${QEMU_KBD_LAYOUT}")
+fi
+
 echo "Starting VM — SSH: ssh -p ${SSH_FWD_PORT} debian@127.0.0.1"
 echo "Display backend: ${QEMU_DISPLAY}"
+if [[ -n "${QEMU_KBD_LAYOUT}" ]]; then
+  echo "QEMU host keymap (-k): ${QEMU_KBD_LAYOUT}"
+fi
 echo "X11 from host (this machine): DISPLAY=127.0.0.1:0  (port ${X11_FWD_PORT} forwarded to guest :0)"
 echo "From Docker Desktop (container → host): DISPLAY=host.docker.internal:0"
 exec "$QEMU_BIN" "${args[@]}"

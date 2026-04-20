@@ -13,3 +13,6 @@ cloud_image_checksum = "sha512:REPLACE_WITH_LINE_FROM_SHA512SUMS"
 # Your fork / monorepo
 frontend_git_url = "https://github.com/yourorg/flygplats.git"
 frontend_git_ref = "main"
+
+# Guest X11/console layout (setxkbmap / localectl). QEMU -k for the host is separate; see README.
+# vm_xkb_layout = "se"

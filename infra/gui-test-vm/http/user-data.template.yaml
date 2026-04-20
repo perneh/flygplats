@@ -3,17 +3,25 @@ hostname: golf-gui-vm
 fqdn: golf-gui-vm.local
 
 users:
+  # Packer / automation SSH (unchanged — packer.pkr.hcl uses ssh_username debian).
   - name: debian
     groups: [adm, sudo]
     shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
     ssh_authorized_keys:
       - __BUILDER_PUB__
+  # Graphical desktop login (LightDM autologin targets this user in setup.sh).
+  - name: admin
+    groups: [adm, sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - __BUILDER_PUB__
 
-# Console / LightDM password for user debian (lab). Substituted at image build time.
+# Console / LightDM password for user admin (lab). Substituted at image build time.
 chpasswd:
   list: |
-    debian:__VM_CONSOLE_PASSWORD__
+    admin:__VM_CONSOLE_PASSWORD__
   expire: false
 
 ssh_pwauth: false

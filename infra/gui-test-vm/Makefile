@@ -6,7 +6,7 @@
 VARFILE ?= min-byggfil.pkrvars.hcl
 DEBIAN_SUMS ?= https://cloud.debian.org/images/cloud/bookworm/latest/SHA512SUMS
 DEBIAN_QCOW ?= debian-12-generic-arm64.qcow2
-VM_CONSOLE_PASSWORD ?= debian
+VM_CONSOLE_PASSWORD ?= admin
 
 .PHONY: help prep keys keys-force prepare init build all checksum-print apply-checksum clean
 

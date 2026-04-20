@@ -31,6 +31,7 @@ else
   # Safer default: local connections only (often not enough for Docker on another host).
   xhost +local: || true
   xhost +SI:localuser:debian || true
+  xhost +SI:localuser:admin || true
 fi
 
 exit 0

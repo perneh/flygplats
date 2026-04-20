@@ -25,6 +25,35 @@ default_qemu_display() {
   esac
 }
 
+# QEMU -k keymap for host→guest key translation (see qemu keymaps). Best-effort from macOS locale.
+default_qemu_kbd_layout() {
+  if [[ -n "${QEMU_KBD_LAYOUT+x}" && -n "${QEMU_KBD_LAYOUT}" ]]; then
+    printf "%s" "$QEMU_KBD_LAYOUT"
+    return 0
+  fi
+  case "$(uname -s)" in
+    Darwin)
+      local loc
+      loc="$(defaults read -g AppleLocale 2>/dev/null || true)"
+      case "$loc" in
+        sv*|SV*) printf sv ;;
+        nb*|nn*|no*|NO*) printf no ;;
+        da*|DA*) printf da ;;
+        fi*|FI*) printf fi ;;
+        de*|DE*) printf de ;;
+        fr*|FR*) printf fr ;;
+        es*|ES*) printf es ;;
+        en_US*|en_??US*) printf us ;;
+        en*) printf "" ;;
+        *) printf sv ;;
+      esac
+      ;;
+    *)
+      printf ""
+      ;;
+  esac
+}
+
 upsert_hcl_var() {
   local key="$1"
   local value="$2"
@@ -86,9 +115,10 @@ Environment:
   FIRMWARE=<path>       Override firmware path for start-qemu
   QEMU_BIN=<binary>     Override qemu binary for start-qemu
   QEMU_DISPLAY=<mode>   QEMU display (default on macOS: cocoa; Linux: none)
+  QEMU_KBD_LAYOUT=<map>  QEMU -k keymap (default on macOS: from AppleLocale, else sv)
   START_TIMEOUT=<sec>   SSH wait timeout for start-and-run-frontend (default: 420)
   SSH_PORT=<port>       Host SSH forward port (default: 2222)
-  VM_CONSOLE_PASSWORD=<pw>  LightDM/console password for debian (default: debian; set before build)
+  VM_CONSOLE_PASSWORD=<pw>  LightDM password for admin (default: admin; set before build)
   START_REMOTE_FRONTEND=0|1  Force SSH launch of frontend (default: 0 with cocoa, 1 with none)
 EOF
 }
@@ -182,7 +212,7 @@ ensure_macos_arm_defaults() {
 }
 
 cmd_prep() {
-  make prep VM_CONSOLE_PASSWORD="${VM_CONSOLE_PASSWORD:-debian}"
+  make prep VM_CONSOLE_PASSWORD="${VM_CONSOLE_PASSWORD:-admin}"
 }
 
 cmd_init() {
@@ -203,7 +233,7 @@ cmd_build() {
   info "Using frontend_git_url: $resolved_git_url"
   env -u PKR_VAR_frontend_git_url -u PKR_VAR_FRONTEND_GIT_URL \
     PKR_VAR_frontend_git_url="$resolved_git_url" \
-    make all VARFILE="$VARFILE" VM_CONSOLE_PASSWORD="${VM_CONSOLE_PASSWORD:-debian}"
+    make all VARFILE="$VARFILE" VM_CONSOLE_PASSWORD="${VM_CONSOLE_PASSWORD:-admin}"
   [[ -f "$QCOW" ]] || die "Build finished but qcow missing: $QCOW"
   info "Build complete: $QCOW"
 }
@@ -220,15 +250,17 @@ cmd_start_qemu() {
   local ssh_port="${SSH_PORT:-2222}"
   local qemu_display
   qemu_display="$(default_qemu_display)"
+  local kbd
+  kbd="$(default_qemu_kbd_layout)"
   local fw="${FIRMWARE:-}"
   if [[ -z "$fw" && -f "$DEFAULT_FIRMWARE" ]]; then
     fw="$DEFAULT_FIRMWARE"
   fi
   if [[ -n "$fw" ]]; then
-    FIRMWARE="$fw" QEMU_DISPLAY="$qemu_display" SSH_FWD_PORT="$ssh_port" ./scripts/run-vm-qemu-example.sh "$QCOW"
+    FIRMWARE="$fw" QEMU_KBD_LAYOUT="$kbd" QEMU_DISPLAY="$qemu_display" SSH_FWD_PORT="$ssh_port" ./scripts/run-vm-qemu-example.sh "$QCOW"
   else
     warn "No firmware path set. On Apple Silicon this usually fails."
-    QEMU_DISPLAY="$qemu_display" SSH_FWD_PORT="$ssh_port" ./scripts/run-vm-qemu-example.sh "$QCOW"
+    QEMU_KBD_LAYOUT="$kbd" QEMU_DISPLAY="$qemu_display" SSH_FWD_PORT="$ssh_port" ./scripts/run-vm-qemu-example.sh "$QCOW"
   fi
 }
 
@@ -241,13 +273,15 @@ cmd_start_and_run_frontend() {
   local ssh_port="${SSH_PORT:-2222}"
   local qemu_display
   qemu_display="$(default_qemu_display)"
+  local kbd
+  kbd="$(default_qemu_kbd_layout)"
   if [[ -z "$fw" && -f "$DEFAULT_FIRMWARE" ]]; then
     fw="$DEFAULT_FIRMWARE"
   fi
 
   local log_file="$ROOT/output/run-qemu.log"
   local timeout="${START_TIMEOUT:-420}"
-  local start_cmd="QEMU_DISPLAY=\"$qemu_display\" SSH_FWD_PORT=\"$ssh_port\" ./scripts/run-vm-qemu-example.sh \"$QCOW\""
+  local start_cmd="QEMU_KBD_LAYOUT=\"$kbd\" QEMU_DISPLAY=\"$qemu_display\" SSH_FWD_PORT=\"$ssh_port\" ./scripts/run-vm-qemu-example.sh \"$QCOW\""
   if [[ -n "$fw" ]]; then
     start_cmd="FIRMWARE=\"$fw\" ${start_cmd}"
   fi
@@ -288,7 +322,7 @@ cmd_start_and_run_frontend() {
   fi
 
   info "QEMU display backend: $qemu_display (log: $log_file)"
-  info "If LightDM asks for credentials: user debian, password ${VM_CONSOLE_PASSWORD:-debian} (lab default; override VM_CONSOLE_PASSWORD before build)."
+  info "If LightDM asks for credentials: user admin, password ${VM_CONSOLE_PASSWORD:-admin} (lab default; override VM_CONSOLE_PASSWORD before build)."
 }
 
 cmd_stop_qemu() {

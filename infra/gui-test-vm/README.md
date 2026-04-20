@@ -119,7 +119,7 @@ Det kan ta **många minuter** första gången. När det är klart ligger resulta
 1. Installera **UTM** från [utm.app](https://mac.getutm.app/) (eller Mac App Store).
 2. Öppna UTM → **File → New → Virtualize** → **Import**.
 3. Välj filen **`output/gui-test-vm.qcow2`**.
-4. Starta VM:en (▶︎). Du ska få **XFCE‑skrivbord** och användaren **`debian`** (inloggning sker ofta automatiskt).
+4. Starta VM:en (▶︎). Du ska få **XFCE‑skrivbord** med användaren **`admin`** (autologin efter ombyggnad med senaste `setup.sh`).
 
 **Nätverk:** om du ska styra fönster från en annan dator/container, sätt i UTM under nätverk **Bridged** (eller följ UTM:s hjälp om “Shared network”) så VM:en får ett eget IP.
 
@@ -164,12 +164,16 @@ START_REMOTE_FRONTEND=1 ./scripts/packer-macos.sh start-and-run-frontend
 
 **Tangentbord i QEMU-fönstret (macOS):** klicka i fönstret så att det får fokus. På `virt` + `aarch64` måste tangentbord/mus vara explicita — `run-vm-qemu-example.sh` lägger till `virtio-keyboard-pci` och `virtio-mouse-pci`. Om du fortfarande inte kan skriva, starta om VM:en efter senaste skriptändring.
 
+**Tangentbordslayout (två lager):** I gästen styr Packer‑variabeln **`vm_xkb_layout`** (standard `se`) `setxkbmap` / `localectl` — det är layouten i X11 efter inloggning. På värd→QEMU används QEMU:s **`-k`** (miljö **`QEMU_KBD_LAYOUT`** i `run-vm-qemu-example.sh`). **`packer-macos.sh`** sätter `QEMU_KBD_LAYOUT` automatiskt från **macOS AppleLocale** om du inte sätter variabeln själv (t.ex. `sv_SE` → `sv`), så att fysiska tangenter oftast hamnar rätt i fönstret. Lista tillgängliga namn: `qemu-system-aarch64 -k help`. Vid avvikelse (t.ex. US‑hårdvara men svensk gästlayout): sätt `QEMU_KBD_LAYOUT=us` och behåll `vm_xkb_layout = "se"` i var‑filen.
+
 **Inloggning i QEMU-fönstret (LightDM):**
 
-- Användare: **`debian`**
-- Lösenord (labb‑default): **`debian`**
+- Användare: **`admin`**
+- Lösenord (labb‑default): **`admin`**
 
-Lösenordet sätts via cloud‑init när du bygger om VM:en. Du kan ändra det innan build:
+Användaren **`debian`** finns kvar för **Packer/SSH‑nyckel** (`http/builder`) — använd den inte för skrivbordsinloggning om du vill undvika förvirring.
+
+Lösenordet för `admin` sätts via cloud‑init när du bygger om VM:en. Du kan ändra det innan build:
 
 ```bash
 VM_CONSOLE_PASSWORD='mitt-lösen' ./scripts/packer-macos.sh all

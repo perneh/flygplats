@@ -112,6 +112,16 @@ variable "qemu_display" {
   default = "none"
 }
 
+variable "vm_xkb_layout" {
+  type        = string
+  default     = "se"
+  description = "Guest X11 keyboard layout (ISO 3166-1 style, e.g. se, us, de). Passed to localectl/setxkbmap."
+  validation {
+    condition     = length(trimspace(var.vm_xkb_layout)) > 0
+    error_message = "The vm_xkb_layout variable must not be empty."
+  }
+}
+
 locals {
   output_dir = "${path.root}/output"
 }
@@ -186,6 +196,7 @@ build {
       "FRONTEND_INSTALL_DIR=${var.frontend_install_dir}",
       "DISPLAY_WIDTH=${var.display_width}",
       "DISPLAY_HEIGHT=${var.display_height}",
+      "VM_XKB_LAYOUT=${var.vm_xkb_layout}",
     ]
     inline = [
       "chmod +x /tmp/setup.sh /tmp/start-x11.sh /tmp/run-frontend.sh",
